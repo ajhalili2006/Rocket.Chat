@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { useRouteParameter, useRoute } from '../contexts/RouterContext';
 import { SideNav } from '../../app/ui-utils';
 import AccountProfilePage from './AccountProfilePage';
+import AccountPreferencesPage from './preferences/AccountPreferencesPage';
 import './sidebarItems';
 
 const AccountRoute = () => {
@@ -19,6 +20,7 @@ const AccountRoute = () => {
 	return <>
 		{{
 			profile: <AccountProfilePage />,
+			preferences: <AccountPreferencesPage />,
 		}[page]}
 	</>;
 };
