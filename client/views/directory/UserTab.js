@@ -10,7 +10,7 @@ import { useQuery } from './hooks';
 import { getUserAvatarURL } from '../../../app/utils/client';
 import { useEndpointData } from '../../hooks/useEndpointData';
 import { useFormatDate } from '../../hooks/useFormatDate';
-import NotAuthorizedPage from '../../admin/NotAuthorizedPage';
+import NotAuthorizedPage from '../../components/NotAuthorizedPage';
 
 const style = { whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' };
 
