@@ -22,7 +22,7 @@ import { useTimeAgo } from '../../../../client/hooks/useTimeAgo';
 import ThreadListMessage, { MessageSkeleton } from './ThreadListMessage';
 import { useUserSubscription } from './hooks/useUserSubscription';
 import { useUserRoom } from './hooks/useUserRoom';
-import { useLocalStorage } from './hooks/useLocalstorage';
+import { useLocalStorage } from '../../../../client/hooks/useLocalstorage';
 import { useSetting } from '../../../../client/contexts/SettingsContext';
 
 
