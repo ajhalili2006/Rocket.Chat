@@ -4,6 +4,7 @@ import { useRouteParameter, useRoute } from '../contexts/RouterContext';
 import { SideNav } from '../../app/ui-utils';
 import AccountProfilePage from './AccountProfilePage';
 import AccountPreferencesPage from './preferences/AccountPreferencesPage';
+import AccountSecurityPage from './security/AccountSecurityPage';
 import './sidebarItems';
 
 const AccountRoute = () => {
@@ -21,6 +22,7 @@ const AccountRoute = () => {
 		{{
 			profile: <AccountProfilePage />,
 			preferences: <AccountPreferencesPage />,
+			security: <AccountSecurityPage />,
 		}[page]}
 	</>;
 };
