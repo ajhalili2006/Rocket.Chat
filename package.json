@@ -123,7 +123,7 @@
 		"eslint-config-prettier": "^8.3.0",
 		"eslint-plugin-import": "^2.24.2",
 		"eslint-plugin-prettier": "^3.4.0",
-		"eslint-plugin-react": "^7.24.0",
+		"eslint-plugin-react": "^7.31.11",
 		"eslint-plugin-react-hooks": "^4.2.0",
 		"fast-glob": "^3.2.5",
 		"husky": "^7.0.1",
