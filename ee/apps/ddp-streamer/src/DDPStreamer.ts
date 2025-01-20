@@ -1,18 +1,20 @@
 import crypto from 'crypto';
 
+import { MeteorService, Presence, ServiceClass } from '@rocket.chat/core-services';
+import { InstanceStatus } from '@rocket.chat/instance-status';
+import { Users } from '@rocket.chat/models';
 import polka from 'polka';
+import { throttle } from 'underscore';
 import WebSocket from 'ws';
 
-import type { NotificationsModule } from '../../../../apps/meteor/server/modules/notifications/notifications.module';
-import { ListenersModule } from '../../../../apps/meteor/server/modules/listeners/listeners.module';
-import { StreamerCentral } from '../../../../apps/meteor/server/modules/streamer/streamer.module';
-import { MeteorService, Presence } from '../../../../apps/meteor/server/sdk';
-import { ServiceClass } from '../../../../apps/meteor/server/sdk/types/ServiceClass';
-import { Client } from './Client';
+import { Client, clientMap } from './Client';
 import { events, server } from './configureServer';
 import { DDP_EVENTS } from './constants';
 import { Autoupdate } from './lib/Autoupdate';
 import { proxy } from './proxy';
+import { ListenersModule } from '../../../../apps/meteor/server/modules/listeners/listeners.module';
+import type { NotificationsModule } from '../../../../apps/meteor/server/modules/notifications/notifications.module';
+import { StreamerCentral } from '../../../../apps/meteor/server/modules/streamer/streamer.module';
 
 const { PORT = 4000 } = process.env;
 
@@ -43,13 +45,29 @@ export class DDPStreamer extends ServiceClass {
 				return;
 			}
 
-			events.emit('meteor.loginServiceConfiguration', clientAction === 'inserted' ? 'added' : 'changed', data);
+			if (data) {
+				events.emit('meteor.loginServiceConfiguration', clientAction === 'inserted' ? 'added' : 'changed', data);
+			}
+		});
+
+		this.onEvent('user.forceLogout', (uid: string) => {
+			this.wss?.clients.forEach((ws) => {
+				const client = clientMap.get(ws);
+				if (client?.userId === uid) {
+					ws.terminate();
+				}
+			});
 		});
 
 		this.onEvent('meteor.clientVersionUpdated', (versions): void => {
 			Autoupdate.updateVersion(versions);
 		});
 	}
+
+	// update connections count every 30 seconds
+	updateConnections = throttle(() => {
+		InstanceStatus.updateConnections(this.wss?.clients.size ?? 0);
+	}, 30000);
 
 	async created(): Promise<void> {
 		if (!this.context) {
@@ -67,6 +85,15 @@ export class DDPStreamer extends ServiceClass {
 		}
 
 		metrics.register({
+			name: 'rocketchat_subscription',
+			type: 'histogram',
+			labelNames: ['subscription'],
+			description: 'Client subscriptions to Rocket.Chat',
+			unit: 'millisecond',
+			quantiles: true,
+		});
+
+		metrics.register({
 			name: 'users_connected',
 			type: 'gauge',
 			labelNames: ['nodeID'],
@@ -79,6 +106,8 @@ export class DDPStreamer extends ServiceClass {
 			labelNames: ['nodeID'],
 			description: 'Users logged by streamer',
 		});
+
+		server.setMetrics(metrics);
 
 		server.on(DDP_EVENTS.CONNECTED, () => {
 			metrics.increment('users_connected', { nodeID }, 1);
@@ -95,17 +124,43 @@ export class DDPStreamer extends ServiceClass {
 			}
 		});
 
-		server.on(DDP_EVENTS.LOGGED, (info) => {
+		async function sendUserData(client: Client, userId: string) {
+			// TODO figure out what fields to send. maybe to to export function getBaseUserFields to a package
+			const loggedUser = await Users.findOneById(userId, {
+				projection: { name: 1, username: 1, settings: 1, roles: 1, active: 1, statusLivechat: 1, statusDefault: 1, status: 1 },
+			});
+			if (!loggedUser) {
+				return;
+			}
+
+			// using setImmediate here so login's method result is sent before we send the user data
+			setImmediate(async () => server.added(client, 'users', userId, loggedUser));
+		}
+		server.on(DDP_EVENTS.LOGGED, async (info: Client) => {
 			const { userId, connection } = info;
 
-			Presence.newConnection(userId, connection.id, nodeID);
-			this.api.broadcast('accounts.login', { userId, connection });
+			if (!userId) {
+				throw new Error('User not logged in');
+			}
+
+			await Presence.newConnection(userId, connection.id, nodeID);
+
+			this.updateConnections();
+
+			// mimic Meteor's default publication that sends user data after login
+			await sendUserData(info, userId);
+
+			server.emit('presence', { userId, connection });
+
+			this.api?.broadcast('accounts.login', { userId, connection });
 		});
 
 		server.on(DDP_EVENTS.LOGGEDOUT, (info) => {
 			const { userId, connection } = info;
 
-			this.api.broadcast('accounts.logout', { userId, connection });
+			this.api?.broadcast('accounts.logout', { userId, connection });
+
+			this.updateConnections();
 
 			if (!userId) {
 				return;
@@ -116,7 +171,9 @@ export class DDPStreamer extends ServiceClass {
 		server.on(DDP_EVENTS.DISCONNECTED, (info) => {
 			const { userId, connection } = info;
 
-			this.api.broadcast('socket.disconnected', connection);
+			this.api?.broadcast('socket.disconnected', connection);
+
+			this.updateConnections();
 
 			if (!userId) {
 				return;
@@ -125,44 +182,56 @@ export class DDPStreamer extends ServiceClass {
 		});
 
 		server.on(DDP_EVENTS.CONNECTED, ({ connection }) => {
-			this.api.broadcast('socket.connected', connection);
+			this.api?.broadcast('socket.connected', connection);
 		});
 	}
 
 	async started(): Promise<void> {
 		// TODO this call creates a dependency to MeteorService, should it be a hard dependency? or can this call fail and be ignored?
-		const versions = await MeteorService.getAutoUpdateClientVersions();
+		try {
+			const versions = await MeteorService.getAutoUpdateClientVersions();
 
-		Object.keys(versions).forEach((key) => {
-			Autoupdate.updateVersion(versions[key]);
-		});
+			Object.keys(versions || {}).forEach((key) => {
+				Autoupdate.updateVersion(versions[key]);
+			});
 
-		this.app = polka()
-			.use(proxy())
-			.get('/health', async (_req, res) => {
-				try {
-					await this.api.nodeList();
-					res.end('ok');
-				} catch (err) {
-					console.error('Service not healthy', err);
+			this.app = polka()
+				.use(proxy())
+				.get('/health', async (_req, res) => {
+					try {
+						if (!this.api) {
+							throw new Error('API not available');
+						}
 
-					res.writeHead(500);
-					res.end('not healthy');
-				}
-			})
-			.get('*', function (_req, res) {
-				res.setHeader('Access-Control-Allow-Origin', '*');
-				res.setHeader('Content-Type', 'application/json');
+						await this.api.nodeList();
+						res.end('ok');
+					} catch (err) {
+						console.error('Service not healthy', err);
 
-				res.writeHead(200);
+						res.writeHead(500);
+						res.end('not healthy');
+					}
+				})
+				.get('*', function (_req, res) {
+					res.setHeader('Access-Control-Allow-Origin', '*');
+					res.setHeader('Content-Type', 'application/json');
 
-				res.end(`{"websocket":true,"origins":["*:*"],"cookie_needed":false,"entropy":${crypto.randomBytes(4).readUInt32LE(0)},"ms":true}`);
-			})
-			.listen(PORT);
+					res.writeHead(200);
 
-		this.wss = new WebSocket.Server({ server: this.app.server });
+					res.end(
+						`{"websocket":true,"origins":["*:*"],"cookie_needed":false,"entropy":${crypto.randomBytes(4).readUInt32LE(0)},"ms":true}`,
+					);
+				})
+				.listen(PORT);
 
-		this.wss.on('connection', (ws, req) => new Client(ws, req.url !== '/websocket', req));
+			this.wss = new WebSocket.Server({ server: this.app.server });
+
+			this.wss.on('connection', (ws, req) => new Client(ws, req.url !== '/websocket', req));
+
+			InstanceStatus.registerInstance('ddp-streamer', {});
+		} catch (err) {
+			console.error('DDPStreamer did not start correctly', err);
+		}
 	}
 
 	async stopped(): Promise<void> {

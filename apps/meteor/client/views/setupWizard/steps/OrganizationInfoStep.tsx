@@ -1,16 +1,17 @@
 import type { ISetting } from '@rocket.chat/core-typings';
 import { OrganizationInfoPage } from '@rocket.chat/onboarding-ui';
 import type { TranslationKey } from '@rocket.chat/ui-contexts';
-import { useRole, useTranslation } from '@rocket.chat/ui-contexts';
+import { useRole } from '@rocket.chat/ui-contexts';
+import type { TFunction } from 'i18next';
 import type { ComponentProps, ReactElement } from 'react';
-import React from 'react';
+import { I18nextProvider, useTranslation } from 'react-i18next';
 
 import { useSetupWizardContext } from '../contexts/SetupWizardContext';
 
 const getSettingOptions = (
 	settings: Array<ISetting> | undefined,
 	settingId: ISetting['_id'],
-	t: ReturnType<typeof useTranslation>,
+	t: TFunction,
 ): Array<[key: string, text: string]> => {
 	if (!settings) {
 		return [];
@@ -18,7 +19,7 @@ const getSettingOptions = (
 
 	const setting = settings.find(({ _id }) => _id === settingId);
 
-	if (!setting || !setting.values) {
+	if (!setting?.values) {
 		return [];
 	}
 
@@ -26,11 +27,12 @@ const getSettingOptions = (
 };
 
 const OrganizationInfoStep = (): ReactElement => {
-	const t = useTranslation();
+	const { t, i18n } = useTranslation();
 	const hasAdminRole = useRole('admin');
 
 	const {
 		setupWizardData: { organizationData },
+		saveOrganizationData,
 		setSetupWizardData,
 		settings,
 		goToPreviousStep,
@@ -42,7 +44,6 @@ const OrganizationInfoStep = (): ReactElement => {
 	} = useSetupWizardContext();
 
 	const countryOptions = getSettingOptions(settings, 'Country', t);
-	const organizationTypeOptions = getSettingOptions(settings, 'Organization_Type', t);
 	const organizationIndustryOptions = getSettingOptions(settings, 'Industry', t);
 	const organizationSizeOptions = getSettingOptions(settings, 'Size', t);
 
@@ -50,23 +51,28 @@ const OrganizationInfoStep = (): ReactElement => {
 		if (skipCloudRegistration) {
 			return completeSetupWizard();
 		}
+
 		setSetupWizardData((prevState) => ({ ...prevState, organizationData: data }));
+
+		await saveOrganizationData(data);
+
 		goToNextStep();
 	};
 
 	return (
-		<OrganizationInfoPage
-			initialValues={organizationData}
-			onSubmit={handleSubmit}
-			onBackButtonClick={!hasAdminRole ? goToPreviousStep : undefined}
-			currentStep={currentStep}
-			stepCount={maxSteps}
-			organizationTypeOptions={organizationTypeOptions}
-			organizationIndustryOptions={organizationIndustryOptions}
-			organizationSizeOptions={organizationSizeOptions}
-			countryOptions={countryOptions}
-			nextStep={skipCloudRegistration ? t('Register') : undefined}
-		/>
+		<I18nextProvider i18n={i18n} defaultNS='onboarding'>
+			<OrganizationInfoPage
+				initialValues={organizationData}
+				onSubmit={handleSubmit}
+				onBackButtonClick={!hasAdminRole ? goToPreviousStep : undefined}
+				currentStep={currentStep}
+				stepCount={maxSteps}
+				organizationIndustryOptions={organizationIndustryOptions}
+				organizationSizeOptions={organizationSizeOptions}
+				countryOptions={countryOptions}
+				nextStep={skipCloudRegistration ? t('Register') : undefined}
+			/>
+		</I18nextProvider>
 	);
 };
 

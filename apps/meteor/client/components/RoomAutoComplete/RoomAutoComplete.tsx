@@ -1,56 +1,86 @@
+import type { IRoom } from '@rocket.chat/core-typings';
 import { AutoComplete, Option, Box } from '@rocket.chat/fuselage';
-import type { ReactElement, ComponentProps } from 'react';
-import React, { memo, useMemo, useState } from 'react';
+import { useDebouncedValue } from '@rocket.chat/fuselage-hooks';
+import { RoomAvatar } from '@rocket.chat/ui-avatar';
+import { useEndpoint } from '@rocket.chat/ui-contexts';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import type { ComponentProps, Dispatch, ReactElement, SetStateAction } from 'react';
+import { memo, useMemo, useState } from 'react';
 
-import { useEndpointData } from '../../hooks/useEndpointData';
-import RoomAvatar from '../avatar/RoomAvatar';
-import Avatar from './Avatar';
-
-const query = (
+const generateQuery = (
 	term = '',
 ): {
 	selector: string;
 } => ({ selector: JSON.stringify({ name: term }) });
 
-type RoomAutoCompleteProps<T> = Omit<ComponentProps<typeof AutoComplete>, 'value' | 'filter' | 'onChange'> & {
-	value: T;
-	onChange: (value: TemplateStringsArray) => void;
+type RoomAutoCompleteProps = Omit<ComponentProps<typeof AutoComplete>, 'filter'> & {
+	scope?: 'admin' | 'regular';
+	renderRoomIcon?: (props: { encrypted: IRoom['encrypted']; type: IRoom['t'] }) => ReactElement | null;
+	setSelectedRoom?: Dispatch<SetStateAction<IRoom | undefined>>;
 };
 
-/* @deprecated */
-const RoomAutoComplete = <T,>(props: RoomAutoCompleteProps<T>): ReactElement => {
+const AVATAR_SIZE = 'x20';
+
+const ROOM_AUTOCOMPLETE_PARAMS = {
+	admin: {
+		endpoint: '/v1/rooms.autocomplete.adminRooms',
+		key: 'roomsAutoCompleteAdmin',
+	},
+	regular: {
+		endpoint: '/v1/rooms.autocomplete.channelAndPrivate',
+		key: 'roomsAutoCompleteRegular',
+	},
+} as const;
+
+const RoomAutoComplete = ({ value, onChange, scope = 'regular', renderRoomIcon, setSelectedRoom, ...props }: RoomAutoCompleteProps) => {
 	const [filter, setFilter] = useState('');
-	const { value: data } = useEndpointData(
-		'/v1/rooms.autocomplete.channelAndPrivate',
-		useMemo(() => query(filter), [filter]),
-	);
+	const filterDebounced = useDebouncedValue(filter, 300);
+	const roomsAutoCompleteEndpoint = useEndpoint('GET', ROOM_AUTOCOMPLETE_PARAMS[scope].endpoint);
+
+	const result = useQuery({
+		queryKey: [ROOM_AUTOCOMPLETE_PARAMS[scope].key, filterDebounced],
+		queryFn: () => roomsAutoCompleteEndpoint(generateQuery(filterDebounced)),
+		placeholderData: keepPreviousData,
+	});
+
 	const options = useMemo(
 		() =>
-			data?.items.map(({ name, _id, avatarETag, t }) => ({
-				value: _id,
-				label: { name, avatarETag, type: t },
-			})) || [],
-		[data],
-	) as unknown as { value: string; label: string }[];
+			result.isSuccess
+				? result.data.items.map(({ name, fname, _id, avatarETag, t, encrypted }) => ({
+						value: _id,
+						label: { name: fname || name, avatarETag, type: t, encrypted },
+					}))
+				: [],
+		[result.data?.items, result.isSuccess],
+	);
 
 	return (
 		<AutoComplete
-			value={props.value as any}
-			onChange={props.onChange as any}
+			{...props}
+			value={value}
+			onChange={(val) => {
+				onChange(val);
+
+				if (setSelectedRoom && typeof setSelectedRoom === 'function') {
+					const selectedRoom = result?.data?.items.find(({ _id }) => _id === val) as unknown as IRoom;
+					setSelectedRoom(selectedRoom);
+				}
+			}}
 			filter={filter}
 			setFilter={setFilter}
-			renderSelected={({ value, label }): ReactElement => (
+			renderSelected={({ selected: { value, label } }) => (
 				<>
-					<Box margin='none' mi='x2'>
-						<RoomAvatar size='x20' room={{ type: label?.type || 'c', _id: value, ...label }} />{' '}
+					<Box margin='none' mi={2}>
+						<RoomAvatar size={AVATAR_SIZE} room={{ type: label?.type || 'c', _id: value, ...label }} />
 					</Box>
-					<Box margin='none' mi='x2'>
+					<Box margin='none' mi={2}>
 						{label?.name}
 					</Box>
+					{renderRoomIcon?.({ ...label })}
 				</>
 			)}
-			renderItem={({ value, label, ...props }): ReactElement => (
-				<Option key={value} {...props} label={label.name} avatar={<Avatar value={value} {...label} />} />
+			renderItem={({ value, label, ...props }) => (
+				<Option {...props} label={label.name} avatar={<RoomAvatar size={AVATAR_SIZE} room={{ _id: value, ...label }} />} />
 			)}
 			options={options}
 		/>

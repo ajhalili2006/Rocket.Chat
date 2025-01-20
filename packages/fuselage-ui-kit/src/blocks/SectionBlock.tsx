@@ -1,10 +1,10 @@
 import { Box, Flex, Grid } from '@rocket.chat/fuselage';
 import type * as UiKit from '@rocket.chat/ui-kit';
 import type { ReactElement } from 'react';
-import React, { memo, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 
-import type { BlockProps } from '../utils/BlockProps';
 import Fields from './SectionBlock.Fields';
+import type { BlockProps } from '../utils/BlockProps';
 
 type SectionBlockProps = BlockProps<UiKit.SectionBlock>;
 
@@ -24,7 +24,7 @@ const SectionBlock = ({
             ...block.accessory,
           }
         : undefined,
-    [block.appId, block.blockId, block.accessory]
+    [block.appId, block.blockId, block.accessory],
   );
 
   return (
@@ -43,7 +43,7 @@ const SectionBlock = ({
             {accessoryElement
               ? surfaceRenderer.renderSectionAccessoryBlockElement(
                   accessoryElement,
-                  0
+                  0,
                 )
               : null}
           </Grid.Item>

@@ -1,23 +1,18 @@
-import '../ee/definition/rest';
-import '../ee/definition/methods';
-import '../definition/methods';
-import '../ee/client/ecdh';
-import './polyfills';
+import './serviceWorker';
+import './startup/accounts';
 
-import '../lib/oauthRedirectUri';
-import './lib/meteorCallWrapper';
-import './importPackages';
+import { FlowRouter } from 'meteor/kadira:flow-router';
 
-import '../ee/client';
-import './templateHelpers';
-import './methods/deleteMessage';
-import './methods/hideRoom';
-import './methods/openRoom';
-import './methods/setUserActiveStatus';
-import './methods/toggleFavorite';
-import './methods/updateMessage';
-import './startup';
-import './views/admin';
-import './views/account';
-import './views/teams';
-import './templates';
+FlowRouter.wait();
+
+FlowRouter.notFound = {
+	action: () => undefined,
+};
+
+import('./polyfills')
+	.then(() => import('./meteorOverrides'))
+	.then(() => import('./ecdh'))
+	.then(() => import('./importPackages'))
+	.then(() => import('./startup'))
+	.then(() => import('./omnichannel'))
+	.then(() => Promise.all([import('./views/admin'), import('./views/marketplace'), import('./views/account')]));

@@ -1,23 +1,23 @@
 import { Box, Button, ButtonGroup } from '@rocket.chat/fuselage';
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
+import type { ComponentType } from 'react';
 
-import Page from '.';
+import { Page, PageContent, PageHeader, PageScrollableContent, PageScrollableContentWithShadow } from '.';
 
 export default {
 	title: 'Components/Page',
 	component: Page,
 	subcomponents: {
-		'Page.Content': Page.Content,
-		'Page.Header': Page.Header,
-		'Page.ScrollableContent': Page.ScrollableContent,
-		'Page.ScrollableContentWithShadow': Page.ScrollableContentWithShadow,
+		PageContent,
+		PageHeader: PageHeader as ComponentType<any>,
+		PageScrollableContent,
+		PageScrollableContentWithShadow,
 	},
 	parameters: {
 		layout: 'fullscreen',
 		controls: { hideNoControlsWarning: true },
 	},
-} as ComponentMeta<typeof Page>;
+} satisfies Meta<typeof Page>;
 
 const DummyContent = ({ rows = 10 }: { rows?: number }) => (
 	<>
@@ -27,47 +27,47 @@ const DummyContent = ({ rows = 10 }: { rows?: number }) => (
 	</>
 );
 
-export const Example: ComponentStory<typeof Page> = () => (
+export const Example: StoryFn<typeof Page> = () => (
 	<Page>
-		<Page.Header title='A platform that prioritizes collaboration over vendor choices' />
-		<Page.Content>
+		<PageHeader title='A platform that prioritizes collaboration over vendor choices' />
+		<PageContent>
 			<Box marginBlock={16}>
 				Say goodbye to inefficient email threads and managing multiple guest accounts. Enable teams to communicate safely with partners,
 				vendors, and suppliers directly from Rocket.Chat regardless of which collaboration platform they use.
 			</Box>
-		</Page.Content>
+		</PageContent>
 	</Page>
 );
 
-export const WithButtonsAtTheHeader: ComponentStory<typeof Page> = () => (
+export const WithButtonsAtTheHeader: StoryFn<typeof Page> = () => (
 	<Page>
-		<Page.Header title='Page Title'>
+		<PageHeader title='Page Title'>
 			<ButtonGroup>
 				<Button primary type='button'>
 					Perform action
 				</Button>
 			</ButtonGroup>
-		</Page.Header>
-		<Page.Content>
+		</PageHeader>
+		<PageContent>
 			<DummyContent />
-		</Page.Content>
+		</PageContent>
 	</Page>
 );
 
-export const WithScrollableContent: ComponentStory<typeof Page> = () => (
+export const WithScrollableContent: StoryFn<typeof Page> = () => (
 	<Page>
-		<Page.Header title='Page Title' />
-		<Page.ScrollableContent>
+		<PageHeader title='Page Title' />
+		<PageScrollableContent>
 			<DummyContent rows={60} />
-		</Page.ScrollableContent>
+		</PageScrollableContent>
 	</Page>
 );
 
-export const WithScrollableContentWithShadow: ComponentStory<typeof Page> = () => (
+export const WithScrollableContentWithShadow: StoryFn<typeof Page> = () => (
 	<Page>
-		<Page.Header title='Page Title' />
-		<Page.ScrollableContentWithShadow>
+		<PageHeader title='Page Title' />
+		<PageScrollableContentWithShadow>
 			<DummyContent rows={60} />
-		</Page.ScrollableContentWithShadow>
+		</PageScrollableContentWithShadow>
 	</Page>
 );

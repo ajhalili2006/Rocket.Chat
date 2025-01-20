@@ -1,13 +1,11 @@
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
 import type { ReactElement } from 'react';
-import React from 'react';
 
-import type { ToolboxContextValue } from '../../contexts/ToolboxContext';
 import KeyboardShortcuts from './KeyboardShortcuts';
+import { useRoomToolbox } from '../../contexts/RoomToolboxContext';
 
-const KeyboardShortcutsWithData = ({ tabBar }: { tabBar: ToolboxContextValue['tabBar'] }): ReactElement => {
-	const handleClose = useMutableCallback(() => tabBar?.close());
-	return <KeyboardShortcuts handleClose={handleClose} />;
+const KeyboardShortcutsWithData = (): ReactElement => {
+	const { closeTab } = useRoomToolbox();
+	return <KeyboardShortcuts handleClose={closeTab} />;
 };
 
 export default KeyboardShortcutsWithData;

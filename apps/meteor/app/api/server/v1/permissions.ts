@@ -1,9 +1,9 @@
-import { Meteor } from 'meteor/meteor';
 import type { IPermission } from '@rocket.chat/core-typings';
-import { isBodyParamsValidPermissionUpdate } from '@rocket.chat/rest-typings';
 import { Permissions, Roles } from '@rocket.chat/models';
+import { isBodyParamsValidPermissionUpdate } from '@rocket.chat/rest-typings';
+import { Meteor } from 'meteor/meteor';
 
-import { hasPermission } from '../../../authorization/server';
+import { notifyOnPermissionChangedById } from '../../../lib/server/lib/notifyListener';
 import { API } from '../api';
 
 API.v1.addRoute(
@@ -21,7 +21,7 @@ API.v1.addRoute(
 				updatedSinceDate = new Date(updatedSince);
 			}
 
-			const result = (await Meteor.call('permissions/get', updatedSinceDate)) as {
+			const result = (await Meteor.callAsync('permissions/get', updatedSinceDate)) as {
 				update: IPermission[];
 				remove: IPermission[];
 			};
@@ -40,13 +40,9 @@ API.v1.addRoute(
 
 API.v1.addRoute(
 	'permissions.update',
-	{ authRequired: true },
+	{ authRequired: true, permissionsRequired: ['access-permissions'] },
 	{
 		async post() {
-			if (!hasPermission(this.userId, 'access-permissions')) {
-				return API.v1.failure('Editing permissions is not allowed', 'error-edit-permissions-not-allowed');
-			}
-
 			const { bodyParams } = this;
 
 			if (!isBodyParamsValidPermissionUpdate(bodyParams)) {
@@ -70,9 +66,10 @@ API.v1.addRoute(
 
 			for await (const permission of bodyParams.permissions) {
 				await Permissions.setRoles(permission._id, permission.roles);
+				void notifyOnPermissionChangedById(permission._id);
 			}
 
-			const result = (await Meteor.call('permissions/get')) as IPermission[];
+			const result = (await Meteor.callAsync('permissions/get')) as IPermission[];
 
 			return API.v1.success({
 				permissions: result,

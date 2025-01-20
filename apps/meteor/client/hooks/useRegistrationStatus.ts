@@ -1,14 +1,26 @@
 import type { OperationResult } from '@rocket.chat/rest-typings';
-import { useEndpoint } from '@rocket.chat/ui-contexts';
+import { useEndpoint, usePermission } from '@rocket.chat/ui-contexts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 
-export const useRegistrationStatus = (): UseQueryResult<OperationResult<'GET', '/v1/cloud.registrationStatus'>> => {
-	const getRegistrationStatus = useEndpoint('GET', '/v1/cloud.registrationStatus');
+type useRegistrationStatusReturnType = {
+	isRegistered?: boolean;
+} & UseQueryResult<OperationResult<'GET', '/v1/cloud.registrationStatus'>>;
 
-	return useQuery(['getRegistrationStatus'], () => getRegistrationStatus(), {
-		refetchOnWindowFocus: false,
-		keepPreviousData: true,
+export const useRegistrationStatus = (): useRegistrationStatusReturnType => {
+	const getRegistrationStatus = useEndpoint('GET', '/v1/cloud.registrationStatus');
+	const canViewregistrationStatus = usePermission('manage-cloud');
+
+	const queryResult = useQuery({
+		queryKey: ['getRegistrationStatus'],
+		queryFn: () => {
+			if (!canViewregistrationStatus) {
+				throw new Error('unauthorized api call');
+			}
+			return getRegistrationStatus();
+		},
 		staleTime: Infinity,
 	});
+
+	return { isRegistered: !queryResult.isPending && queryResult.data?.registrationStatus?.workspaceRegistered, ...queryResult };
 };

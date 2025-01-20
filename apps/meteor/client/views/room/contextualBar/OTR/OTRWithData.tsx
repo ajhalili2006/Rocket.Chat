@@ -1,18 +1,16 @@
-import type { IRoom } from '@rocket.chat/core-typings';
 import type { ReactElement } from 'react';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 
-import ORTInstance from '../../../../../app/otr/client/OTR';
+import OTRComponent from './OTR';
 import { OtrRoomState } from '../../../../../app/otr/lib/OtrRoomState';
+import { useOTR } from '../../../../hooks/useOTR';
 import { usePresence } from '../../../../hooks/usePresence';
-import { useReactiveValue } from '../../../../hooks/useReactiveValue';
-import { useTabBarClose } from '../../contexts/ToolboxContext';
-import OTR from './OTR';
+import { useRoomToolbox } from '../../contexts/RoomToolboxContext';
 
-const OTRWithData = ({ rid }: { rid: IRoom['_id'] }): ReactElement => {
-	const closeTabBar = useTabBarClose();
-	const otr = useMemo(() => ORTInstance.getInstanceByRoomId(rid), [rid]);
-	const otrState = useReactiveValue(useCallback(() => (otr ? otr.getState() : OtrRoomState.ERROR), [otr]));
+const OTRWithData = (): ReactElement => {
+	const { otr, otrState } = useOTR();
+	const { closeTab } = useRoomToolbox();
+
 	const peerUserPresence = usePresence(otr?.getPeerId());
 	const userStatus = peerUserPresence?.status;
 	const peerUsername = peerUserPresence?.username;
@@ -46,9 +44,9 @@ const OTRWithData = ({ rid }: { rid: IRoom['_id'] }): ReactElement => {
 	}, [otr, otrState]);
 
 	return (
-		<OTR
+		<OTRComponent
 			isOnline={isOnline}
-			onClickClose={closeTabBar}
+			onClickClose={closeTab}
 			onClickStart={handleStart}
 			onClickEnd={handleEnd}
 			onClickRefresh={handleReset}

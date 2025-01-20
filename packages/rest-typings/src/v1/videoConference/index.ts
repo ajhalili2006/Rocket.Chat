@@ -1,10 +1,10 @@
 import type { VideoConferenceInstructions, VideoConference, VideoConferenceCapabilities } from '@rocket.chat/core-typings';
 
+import type { VideoConfCancelProps } from './VideoConfCancelProps';
 import type { VideoConfInfoProps } from './VideoConfInfoProps';
+import type { VideoConfJoinProps } from './VideoConfJoinProps';
 import type { VideoConfListProps } from './VideoConfListProps';
 import type { VideoConfStartProps } from './VideoConfStartProps';
-import type { VideoConfJoinProps } from './VideoConfJoinProps';
-import type { VideoConfCancelProps } from './VideoConfCancelProps';
 import type { PaginatedResult } from '../../helpers/PaginatedResult';
 
 export * from './VideoConfInfoProps';

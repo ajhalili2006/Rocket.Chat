@@ -1,16 +1,19 @@
-import type { Box } from '@rocket.chat/fuselage';
-import { Sidebar } from '@rocket.chat/fuselage';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
-import { useLayout, useRoute, usePermission, useTranslation } from '@rocket.chat/ui-contexts';
-import type { ReactElement } from 'react';
-import React, { memo } from 'react';
+import { Sidebar, SidebarDivider, SidebarSection } from '@rocket.chat/fuselage';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+import { FeaturePreview, FeaturePreviewOff, FeaturePreviewOn } from '@rocket.chat/ui-client';
+import { useLayout, useRoute, usePermission } from '@rocket.chat/ui-contexts';
+import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { useIsCallEnabled, useIsCallReady } from '../../contexts/CallContext';
-import { useOmnichannelShowQueueLink } from '../../hooks/omnichannel/useOmnichannelShowQueueLink';
+import { OverMacLimitSection } from './OverMacLimitSection';
 import { OmniChannelCallDialPad, OmnichannelCallToggle, OmnichannelLivechatToggle } from './actions';
+import { useIsCallEnabled, useIsCallReady } from '../../contexts/CallContext';
+import { useIsOverMacLimit } from '../../hooks/omnichannel/useIsOverMacLimit';
+import { useOmnichannelShowQueueLink } from '../../hooks/omnichannel/useOmnichannelShowQueueLink';
+import SidebarHeaderToolbar from '../header/SidebarHeaderToolbar';
 
-const OmnichannelSection = (props: typeof Box): ReactElement => {
-	const t = useTranslation();
+const OmnichannelSection = () => {
+	const { t } = useTranslation();
 	const isCallEnabled = useIsCallEnabled();
 	const isCallReady = useIsCallReady();
 	const hasPermissionToSeeContactCenter = usePermission('view-omnichannel-contact-center');
@@ -18,8 +21,9 @@ const OmnichannelSection = (props: typeof Box): ReactElement => {
 	const { sidebar } = useLayout();
 	const directoryRoute = useRoute('omnichannel-directory');
 	const queueListRoute = useRoute('livechat-queue');
+	const isWorkspaceOverMacLimit = useIsOverMacLimit();
 
-	const handleRoute = useMutableCallback((route) => {
+	const handleRoute = useEffectEvent((route: string) => {
 		sidebar.toggle();
 
 		switch (route) {
@@ -34,28 +38,56 @@ const OmnichannelSection = (props: typeof Box): ReactElement => {
 
 	// The className is a paliative while we make TopBar.ToolBox optional on fuselage
 	return (
-		<Sidebar.TopBar.ToolBox className='omnichannel-sidebar' {...props}>
-			<Sidebar.TopBar.Title>{t('Omnichannel')}</Sidebar.TopBar.Title>
-			<Sidebar.TopBar.Actions>
-				{showOmnichannelQueueLink && (
-					<Sidebar.TopBar.Action icon='queue' data-tooltip={t('Queue')} onClick={(): void => handleRoute('queue')} />
-				)}
-				{isCallEnabled && <OmnichannelCallToggle />}
-				<OmnichannelLivechatToggle />
-				{hasPermissionToSeeContactCenter && (
-					<Sidebar.TopBar.Action
-						data-tooltip={t('Contact_Center')}
-						aria-label={t('Contact_Center')}
-						icon='address-book'
-						onClick={(): void => handleRoute('directory')}
-					/>
-				)}
-				{isCallReady && <OmniChannelCallDialPad />}
-			</Sidebar.TopBar.Actions>
-		</Sidebar.TopBar.ToolBox>
+		<>
+			{isWorkspaceOverMacLimit && <OverMacLimitSection />}
+
+			<FeaturePreview feature='newNavigation'>
+				<FeaturePreviewOff>
+					<Sidebar.TopBar.Section aria-label={t('Omnichannel_actions')} className='omnichannel-sidebar'>
+						<Sidebar.TopBar.Title>{t('Omnichannel')}</Sidebar.TopBar.Title>
+						<SidebarHeaderToolbar>
+							{showOmnichannelQueueLink && (
+								<Sidebar.TopBar.Action icon='queue' data-tooltip={t('Queue')} onClick={(): void => handleRoute('queue')} />
+							)}
+							{isCallEnabled && <OmnichannelCallToggle />}
+							<OmnichannelLivechatToggle />
+							{hasPermissionToSeeContactCenter && (
+								<Sidebar.TopBar.Action
+									data-tooltip={t('Contact_Center')}
+									aria-label={t('Contact_Center')}
+									icon='address-book'
+									onClick={(): void => handleRoute('directory')}
+								/>
+							)}
+							{isCallReady && <OmniChannelCallDialPad />}
+						</SidebarHeaderToolbar>
+					</Sidebar.TopBar.Section>
+				</FeaturePreviewOff>
+				<FeaturePreviewOn>
+					<SidebarSection aria-label={t('Omnichannel_actions')}>
+						<Sidebar.TopBar.Title>{t('Omnichannel')}</Sidebar.TopBar.Title>
+						<SidebarHeaderToolbar>
+							{showOmnichannelQueueLink && (
+								<Sidebar.TopBar.Action icon='queue' data-tooltip={t('Queue')} onClick={(): void => handleRoute('queue')} />
+							)}
+							{isCallEnabled && <OmnichannelCallToggle />}
+							<OmnichannelLivechatToggle />
+							{hasPermissionToSeeContactCenter && (
+								<Sidebar.TopBar.Action
+									data-tooltip={t('Contact_Center')}
+									aria-label={t('Contact_Center')}
+									icon='address-book'
+									onClick={(): void => handleRoute('directory')}
+								/>
+							)}
+							{isCallReady && <OmniChannelCallDialPad />}
+						</SidebarHeaderToolbar>
+					</SidebarSection>
+					<SidebarDivider />
+				</FeaturePreviewOn>
+			</FeaturePreview>
+		</>
 	);
 };
 
-export default Object.assign(memo(OmnichannelSection), {
-	size: 56,
-});
+export default memo(OmnichannelSection);

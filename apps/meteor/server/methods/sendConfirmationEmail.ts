@@ -1,19 +1,21 @@
-import { Meteor } from 'meteor/meteor';
-import { check } from 'meteor/check';
+import type { ServerMethods } from '@rocket.chat/ddp-client';
+import { Users } from '@rocket.chat/models';
 import { Accounts } from 'meteor/accounts-base';
+import { check } from 'meteor/check';
+import { DDPRateLimiter } from 'meteor/ddp-rate-limiter';
+import { Meteor } from 'meteor/meteor';
 
-import { Users } from '../../app/models/server';
 import { methodDeprecationLogger } from '../../app/lib/server/lib/deprecationWarningLogger';
 
-Meteor.methods({
-	sendConfirmationEmail(to) {
+Meteor.methods<ServerMethods>({
+	async sendConfirmationEmail(to) {
 		check(to, String);
 
-		methodDeprecationLogger.warn('sendConfirmationEmail will be deprecated in future versions of Rocket.Chat');
+		methodDeprecationLogger.method('sendConfirmationEmail', '7.0.0');
 
 		const email = to.trim();
 
-		const user = Users.findOneByEmailAddress(email, { fields: { _id: 1 } });
+		const user = await Users.findOneByEmailAddress(email, { projection: { _id: 1 } });
 
 		if (!user) {
 			return false;
@@ -30,3 +32,15 @@ Meteor.methods({
 		}
 	},
 });
+
+DDPRateLimiter.addRule(
+	{
+		type: 'method',
+		name: 'sendConfirmationEmail',
+		userId() {
+			return true;
+		},
+	},
+	5,
+	60000,
+);

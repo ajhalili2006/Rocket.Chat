@@ -1,10 +1,10 @@
-import { Meteor } from 'meteor/meteor';
 import { Accounts } from 'meteor/accounts-base';
-import { OAuth } from 'meteor/oauth';
 import { check } from 'meteor/check';
+import { Meteor } from 'meteor/meteor';
+import { OAuth } from 'meteor/oauth';
 
-import { callbacks } from '../../../lib/callbacks';
 import { checkCodeForUser } from './code/index';
+import { callbacks } from '../../../lib/callbacks';
 
 const isMeteorError = (error: any): error is Meteor.Error => {
 	return error?.meteorError !== undefined;
@@ -15,7 +15,7 @@ const isCredentialWithError = (credential: any): credential is { error: Error } 
 };
 
 Accounts.registerLoginHandler('totp', function (options) {
-	if (!options.totp || !options.totp.code) {
+	if (!options.totp?.code) {
 		return;
 	}
 
@@ -25,23 +25,22 @@ Accounts.registerLoginHandler('totp', function (options) {
 
 callbacks.add(
 	'onValidateLogin',
-	(login) => {
-		if (login.type === 'resume' || login.type === 'proxy' || login.methodName === 'verifyEmail') {
-			return login;
-		}
-		// CAS login doesn't yet support 2FA.
-		if (login.type === 'cas') {
-			return login;
-		}
-
-		if (!login.user) {
+	async (login) => {
+		if (
+			!login.user ||
+			login.type === 'resume' ||
+			login.type === 'proxy' ||
+			login.type === 'cas' ||
+			(login.type === 'password' && login.methodName === 'resetPassword') ||
+			login.methodName === 'verifyEmail'
+		) {
 			return login;
 		}
 
 		const [loginArgs] = login.methodArguments;
 		const { totp } = loginArgs;
 
-		checkCodeForUser({
+		await checkCodeForUser({
 			user: login.user,
 			code: totp?.code,
 			options: { disablePasswordFallback: true },
@@ -72,11 +71,11 @@ const recreateError = (errorDoc: Error | Meteor.Error): Error | Meteor.Error => 
 	return copyTo(errorDoc, error);
 };
 
-OAuth._retrievePendingCredential = function (key, ...args): string | Error | void {
+OAuth._retrievePendingCredential = async function (key, ...args): Promise<string | Error | void> {
 	const credentialSecret = args.length > 0 && args[0] !== undefined ? args[0] : undefined;
 	check(key, String);
 
-	const pendingCredential = OAuth._pendingCredentials.findOne({
+	const pendingCredential = await OAuth._pendingCredentials.findOneAsync({
 		key,
 		credentialSecret,
 	});
@@ -96,7 +95,7 @@ OAuth._retrievePendingCredential = function (key, ...args): string | Error | voi
 	const future = new Date();
 	future.setMinutes(future.getMinutes() + 2);
 
-	OAuth._pendingCredentials.update(
+	await OAuth._pendingCredentials.updateAsync(
 		{
 			_id: pendingCredential._id,
 		},

@@ -4,13 +4,12 @@ import { Meteor } from 'meteor/meteor';
 import { Session } from 'meteor/session';
 import { Tracker } from 'meteor/tracker';
 
-import { ChatSubscription, ChatRoom } from '../../app/models/client';
-import { settings } from '../../app/settings/client';
+import { Subscriptions, Rooms } from '../../app/models/client';
 import { getUserPreference } from '../../app/utils/client';
 import { fireGlobalEvent } from '../lib/utils/fireGlobalEvent';
 
 const fetchSubscriptions = (): ISubscription[] =>
-	ChatSubscription.find(
+	Subscriptions.find(
 		{
 			open: true,
 			hideUnreadStatus: { $ne: true },
@@ -40,7 +39,7 @@ Meteor.startup(() => {
 		const unreadCount = fetchSubscriptions().reduce(
 			(ret, subscription) =>
 				Tracker.nonreactive(() => {
-					const room = ChatRoom.findOne({ _id: subscription.rid }, { fields: { usersCount: 1 } });
+					const room = Rooms.findOne({ _id: subscription.rid }, { fields: { usersCount: 1 } });
 					fireGlobalEvent('unread-changed-by-subscription', {
 						...subscription,
 						usersCount: room?.usersCount,
@@ -78,13 +77,9 @@ Meteor.startup(() => {
 	const updateFavicon = manageFavicon();
 
 	Tracker.autorun(() => {
-		const siteName = settings.get('Site_Name') ?? '';
-
 		const unread = Session.get('unread');
 		fireGlobalEvent('unread-changed', unread);
 
 		updateFavicon(unread);
-
-		document.title = unread === '' ? siteName : `(${unread}) ${siteName}`;
 	});
 });

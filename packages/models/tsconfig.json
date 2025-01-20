@@ -1,10 +1,11 @@
 {
-	"extends": "../../tsconfig.base.json",
+	"extends": "../../tsconfig.base.server.json",
 	"compilerOptions": {
+		// TODO migrate Users to TS
+		"allowJs": true,
+		"declaration": true,
 		"rootDir": "./src",
 		"outDir": "./dist",
-		"resolveJsonModule": true,
-		"esModuleInterop": true,
 	},
 	"include": ["./src/**/*"]
 }

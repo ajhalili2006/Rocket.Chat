@@ -1,12 +1,13 @@
+import type { IAppServerOrchestrator } from '@rocket.chat/apps';
 import type { ISetting } from '@rocket.chat/apps-engine/definition/settings';
 import { ServerSettingBridge } from '@rocket.chat/apps-engine/server/bridges/ServerSettingBridge';
 import { Settings } from '@rocket.chat/models';
 
-import type { AppServerOrchestrator } from '../orchestrator';
+import { updateAuditedByApp } from '../../../../server/settings/lib/auditedSettingUpdates';
+import { notifyOnSettingChanged, notifyOnSettingChangedById } from '../../../lib/server/lib/notifyListener';
 
 export class AppSettingBridge extends ServerSettingBridge {
-	// eslint-disable-next-line no-empty-function
-	constructor(private readonly orch: AppServerOrchestrator) {
+	constructor(private readonly orch: IAppServerOrchestrator) {
 		super();
 	}
 
@@ -56,7 +57,15 @@ export class AppSettingBridge extends ServerSettingBridge {
 			throw new Error(`The setting "${setting.id}" is not readable.`);
 		}
 
-		await Settings.updateValueById(setting.id, setting.value);
+		if (
+			(
+				await updateAuditedByApp({
+					_id: appId,
+				})(Settings.updateValueById, setting.id, setting.value)
+			).modifiedCount
+		) {
+			void notifyOnSettingChangedById(setting.id);
+		}
 	}
 
 	protected async incrementValue(id: string, value: number, appId: string): Promise<void> {
@@ -66,6 +75,9 @@ export class AppSettingBridge extends ServerSettingBridge {
 			throw new Error(`The setting "${id}" is not readable.`);
 		}
 
-		await Settings.incrementValueById(id, value);
+		const setting = await Settings.incrementValueById(id, value, { returnDocument: 'after' });
+		if (setting) {
+			void notifyOnSettingChanged(setting);
+		}
 	}
 }

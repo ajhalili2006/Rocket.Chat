@@ -1,5 +1,6 @@
-import { useEndpoint, useTranslation } from '@rocket.chat/ui-contexts';
+import { useEndpoint } from '@rocket.chat/ui-contexts';
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useScrollableRecordList } from '../../../hooks/lists/useScrollableRecordList';
 import { useComponentDidUpdate } from '../../../hooks/useComponentDidUpdate';
@@ -9,6 +10,9 @@ type AgentsListOptions = {
 	text: string;
 	haveAll: boolean;
 	haveNoAgentsSelectedOption: boolean;
+	excludeId?: string;
+	showIdleAgents?: boolean;
+	onlyAvailable?: boolean;
 };
 
 type AgentOption = { value: string; label: string; _updatedAt: Date; _id: string };
@@ -21,20 +25,24 @@ export const useAgentsList = (
 	reload: () => void;
 	loadMoreItems: (start: number, end: number) => void;
 } => {
-	const t = useTranslation();
+	const { t } = useTranslation();
 	const [itemsList, setItemsList] = useState(() => new RecordList<AgentOption>());
 	const reload = useCallback(() => setItemsList(new RecordList<AgentOption>()), []);
 
 	const getAgents = useEndpoint('GET', '/v1/livechat/users/agent');
+	const { text, onlyAvailable = false, showIdleAgents = true, excludeId, haveAll, haveNoAgentsSelectedOption } = options;
 
 	useComponentDidUpdate(() => {
 		options && reload();
 	}, [options, reload]);
 
 	const fetchData = useCallback(
-		async (start, end) => {
+		async (start: number, end: number) => {
 			const { users: agents, total } = await getAgents({
-				...(options.text && { text: options.text }),
+				...(text && { text }),
+				...(excludeId && { excludeId }),
+				showIdleAgents,
+				onlyAvailable,
 				offset: start,
 				count: end + start,
 				sort: `{ "name": 1 }`,
@@ -43,14 +51,14 @@ export const useAgentsList = (
 			const items = agents.map<AgentOption>((agent) => {
 				const agentOption = {
 					_updatedAt: new Date(agent._updatedAt),
-					label: agent.username || agent._id,
+					label: `${agent.name || agent._id} (@${agent.username})`,
 					value: agent._id,
 					_id: agent._id,
 				};
 				return agentOption;
 			});
 
-			options.haveAll &&
+			haveAll &&
 				items.unshift({
 					label: t('All'),
 					value: 'all',
@@ -58,7 +66,7 @@ export const useAgentsList = (
 					_id: 'all',
 				});
 
-			options.haveNoAgentsSelectedOption &&
+			haveNoAgentsSelectedOption &&
 				items.unshift({
 					label: t('Empty_no_agent_selected'),
 					value: 'no-agent-selected',
@@ -71,7 +79,7 @@ export const useAgentsList = (
 				itemCount: total + 1,
 			};
 		},
-		[getAgents, options.haveAll, options.haveNoAgentsSelectedOption, options.text, t],
+		[excludeId, getAgents, haveAll, haveNoAgentsSelectedOption, onlyAvailable, showIdleAgents, t, text],
 	);
 
 	const { loadMoreItems, initialItemCount } = useScrollableRecordList(itemsList, fetchData, 25);

@@ -1,9 +1,9 @@
 import type { IRoom, Serialized } from '@rocket.chat/core-typings';
-import { CheckBox, TableRow, TableCell, Icon, Margins } from '@rocket.chat/fuselage';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
+import { CheckBox, Icon, Margins } from '@rocket.chat/fuselage';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
 import type { ReactElement } from 'react';
-import React from 'react';
 
+import { GenericTableRow, GenericTableCell } from '../../../components/GenericTable';
 import { useFormatDateAndTime } from '../../../hooks/useFormatDateAndTime';
 
 type ChannelDesertionTableRowProps = {
@@ -16,22 +16,22 @@ type ChannelDesertionTableRowProps = {
 const ChannelDesertionTableRow = ({ room, onChange, selected, lastOwnerWarning }: ChannelDesertionTableRowProps): ReactElement => {
 	const { name, fname, ts, isLastOwner } = room;
 	const formatDate = useFormatDateAndTime();
-	const handleChange = useMutableCallback(() => onChange(room));
+	const handleChange = useEffectEvent(() => onChange(room));
 
 	return (
-		<TableRow action>
-			<TableCell maxWidth='x300' withTruncatedText>
+		<GenericTableRow action>
+			<GenericTableCell maxWidth='x300' withTruncatedText>
 				<CheckBox checked={selected} onChange={handleChange} disabled={room.isLastOwner} />
-				<Margins inline='x8'>
+				<Margins inline={8}>
 					<Icon name={room.t === 'p' ? 'hashtag-lock' : 'hashtag'} />
 					{fname ?? name}
-					{isLastOwner && <Icon size='x16' name='info-circled' color='danger' title={lastOwnerWarning} />}
+					{isLastOwner && <Icon size='x16' name='info-circled' color='status-font-on-danger' title={lastOwnerWarning} />}
 				</Margins>
-			</TableCell>
-			<TableCell align='end' withTruncatedText>
+			</GenericTableCell>
+			<GenericTableCell align='end' withTruncatedText>
 				{formatDate(ts)}
-			</TableCell>
-		</TableRow>
+			</GenericTableCell>
+		</GenericTableRow>
 	);
 };
 

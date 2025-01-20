@@ -1,7 +1,7 @@
 import i18next from 'i18next';
 
 import { Livechat } from '../api';
-import { canRenderMessage } from '../components/helpers';
+import { canRenderMessage } from '../helpers/canRenderMessage';
 import store from '../store';
 import constants from './constants';
 
@@ -36,7 +36,7 @@ export const updateBusinessUnit = async (newBusinessUnit) => {
 };
 
 export const loadConfig = async () => {
-	const { token, businessUnit = null, iframe: { guest: { department } = {} } = {} } = store.state;
+	const { renderedTriggers, token, businessUnit = null, iframe: { guest: { department } = {} } = {} } = store.state;
 
 	Livechat.credentials.token = token;
 
@@ -60,7 +60,7 @@ export const loadConfig = async () => {
 		user,
 		queueInfo,
 		sound: { src, enabled: true, play: false },
-		messages: [],
+		messages: [...renderedTriggers],
 		typing: [],
 		noMoreMessages: false,
 		visible: true,
@@ -68,29 +68,60 @@ export const loadConfig = async () => {
 	});
 };
 
+export const shouldMarkAsUnread = () => {
+	const { minimized, visible, messageListPosition } = store.state;
+	return minimized || !visible || (messageListPosition !== undefined && messageListPosition !== 'bottom');
+};
+
+export const getLastReadMessage = () => {
+	const { messages, lastReadMessageId, user } = store.state;
+
+	const renderedMessages = messages.filter((message) => canRenderMessage(message));
+
+	return lastReadMessageId
+		? renderedMessages.find((item) => item._id === lastReadMessageId)
+		: renderedMessages
+				.slice()
+				.reverse()
+				.find((item) => item.u._id === user?._id);
+};
+
+export const getUnreadMessages = () => {
+	const { messages, user, lastReadMessageId } = store.state;
+
+	const renderedMessages = messages.filter((message) => canRenderMessage(message));
+
+	const lastReadMessageIndex = lastReadMessageId
+		? renderedMessages.findIndex((item) => item._id === lastReadMessageId)
+		: renderedMessages.findLastIndex((item) => item.u._id === user?._id);
+
+	if (lastReadMessageIndex === -1) return 0;
+	return renderedMessages.slice(lastReadMessageIndex + 1).filter((message) => message.u._id !== user?._id).length;
+};
+
 export const processUnread = async () => {
-	const { minimized, visible, messages } = store.state;
-
-	if (minimized || !visible) {
-		const { alerts, lastReadMessageId } = store.state;
-		const renderedMessages = messages.filter((message) => canRenderMessage(message));
-		const lastReadMessageIndex = renderedMessages.findIndex((item) => item._id === lastReadMessageId);
-		const unreadMessages = renderedMessages.slice(lastReadMessageIndex + 1);
-
-		if (lastReadMessageIndex !== -1) {
-			const lastReadMessage = renderedMessages[lastReadMessageIndex];
-			const alertMessage = i18next.t('count_new_messages_since_since', {
-				count: unreadMessages.length,
-				val: new Date(lastReadMessage.ts),
-				formatParams: {
-					val: { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' },
-				},
-			});
-			const alert = { id: constants.unreadMessagesAlertId, children: alertMessage, success: true, timeout: 0 };
-			const newAlerts = alerts.filter((item) => item.id !== constants.unreadMessagesAlertId);
-			await store.setState({ alerts: (newAlerts.push(alert), newAlerts) });
-		}
-
-		await store.setState({ unread: unreadMessages.length });
+	const unreadMessages = getUnreadMessages();
+	if (unreadMessages <= 0) {
+		await store.setState({ unread: 0 });
+		return;
 	}
+
+	const shouldMarkUnread = shouldMarkAsUnread();
+	if (!shouldMarkUnread) {
+		return;
+	}
+
+	const { alerts } = store.state;
+	const lastReadMessage = getLastReadMessage();
+	const alertMessage = i18next.t('count_new_messages_since_since', {
+		count: unreadMessages,
+		val: new Date(lastReadMessage.ts),
+		formatParams: {
+			val: { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' },
+		},
+	});
+	const alert = { id: constants.unreadMessagesAlertId, children: alertMessage, success: true, timeout: 0 };
+	const newAlerts = alerts.filter((item) => item.id !== constants.unreadMessagesAlertId);
+
+	await store.setState({ alerts: (newAlerts.push(alert), newAlerts), unread: unreadMessages });
 };

@@ -1,52 +1,28 @@
-import type { IOmnichannelRoomFromAppSource } from '@rocket.chat/core-typings';
+import { type IOmnichannelSourceFromApp } from '@rocket.chat/core-typings';
 import { Icon, Box } from '@rocket.chat/fuselage';
-import type { ComponentProps, ReactElement } from 'react';
-import React from 'react';
+import type { ComponentProps } from 'react';
 
-import { AsyncStatePhase } from '../../../lib/asyncState/AsyncStatePhase';
 import { useOmnichannelRoomIcon } from './context/OmnichannelRoomIconContext';
+import { AsyncStatePhase } from '../../../lib/asyncState/AsyncStatePhase';
 
-export const colors = {
-	busy: 'danger-500',
-	away: 'warning-600',
-	online: 'success-500',
-	offline: 'neutral-600',
-};
-
-const convertBoxSizeToNumber = (boxSize: ComponentProps<typeof Icon>['size']): number => {
-	switch (boxSize) {
-		case 'x20': {
-			return 20;
-		}
-		case 'x24': {
-			return 24;
-		}
-		case 'x16':
-		default: {
-			return 16;
-		}
-	}
-};
-
-export const OmnichannelAppSourceRoomIcon = ({
-	room,
-	size = 16,
-	placement = 'default',
-}: {
-	room: IOmnichannelRoomFromAppSource;
+type OmnichannelAppSourceRoomIconProps = {
+	source: IOmnichannelSourceFromApp;
+	color: ComponentProps<typeof Box>['color'];
 	size: ComponentProps<typeof Icon>['size'];
 	placement: 'sidebar' | 'default';
-}): ReactElement => {
-	const color = colors[room.v.status || 'offline'];
-	const icon = (placement === 'sidebar' && room.source.sidebarIcon) || room.source.defaultIcon;
-	const { phase, value } = useOmnichannelRoomIcon(room.source.id, icon || '');
-	const fontSize = convertBoxSizeToNumber(size);
+};
+
+export const OmnichannelAppSourceRoomIcon = ({ source, color, size, placement }: OmnichannelAppSourceRoomIconProps) => {
+	const icon = (placement === 'sidebar' && source.sidebarIcon) || source.defaultIcon;
+	const { phase, value } = useOmnichannelRoomIcon(source.id, icon || '');
+
 	if ([AsyncStatePhase.REJECTED, AsyncStatePhase.LOADING].includes(phase)) {
 		return <Icon name='headset' size={size} color={color} />;
 	}
+
 	return (
-		<Box size={fontSize} color={color}>
-			<Box is='svg' size={fontSize} aria-hidden='true'>
+		<Box size={size} color={color}>
+			<Box is='svg' size={size} aria-hidden='true'>
 				<Box is='use' href={`#${value}`} />
 			</Box>
 		</Box>

@@ -1,20 +1,14 @@
-import type { IMessage, IRoom, ISubscription } from '@rocket.chat/core-typings';
-import type { Mongo } from 'meteor/mongo';
+import type { IEditedMessage, IMessage, IRoom, ISubscription } from '@rocket.chat/core-typings';
+import { Random } from '@rocket.chat/random';
 import moment from 'moment';
 
-import { hasAtLeastOnePermission } from '../../../app/authorization/client';
+import type { DataAPI } from './ChatAPI';
+import { hasAtLeastOnePermission, hasPermission } from '../../../app/authorization/client';
 import { Messages, Rooms, Subscriptions } from '../../../app/models/client';
 import { settings } from '../../../app/settings/client';
-import { readMessage, MessageTypes } from '../../../app/ui-utils/client';
-import { getRandomId } from '../../../lib/random';
-import { onClientBeforeSendMessage } from '../onClientBeforeSendMessage';
-import { call } from '../utils/call';
+import { MessageTypes } from '../../../app/ui-utils/client';
+import { sdk } from '../../../app/utils/client/lib/SDKClient';
 import { prependReplies } from '../utils/prependReplies';
-import type { DataAPI } from './ChatAPI';
-
-const messagesCollection = Messages as Mongo.Collection<IMessage>;
-const roomsCollection = Rooms as Mongo.Collection<IRoom>;
-const subscriptionsCollection = Subscriptions as Mongo.Collection<ISubscription>;
 
 export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage['_id'] | undefined }): DataAPI => {
 	const composeMessage = async (
@@ -26,19 +20,19 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 		const effectiveRID = originalMessage?.rid ?? rid;
 		const effectiveTMID = originalMessage ? originalMessage.tmid : tmid;
 
-		return (await onClientBeforeSendMessage({
-			_id: originalMessage?._id ?? getRandomId(),
+		return {
+			_id: originalMessage?._id ?? Random.id(),
 			rid: effectiveRID,
 			...(effectiveTMID && {
 				tmid: effectiveTMID,
 				...(sendToChannel && { tshow: sendToChannel }),
 			}),
 			msg,
-		})) as IMessage;
+		} as IMessage;
 	};
 
-	const findMessageByID = async (mid: IMessage['_id']): Promise<IMessage | undefined> =>
-		messagesCollection.findOne({ _id: mid, _hidden: { $ne: true } }, { reactive: false }) ?? call('getSingleMessage', mid);
+	const findMessageByID = async (mid: IMessage['_id']): Promise<IMessage | null> =>
+		Messages.findOne({ _id: mid, _hidden: { $ne: true } }, { reactive: false }) ?? sdk.call('getSingleMessage', mid);
 
 	const getMessageByID = async (mid: IMessage['_id']): Promise<IMessage> => {
 		const message = await findMessageByID(mid);
@@ -51,7 +45,7 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 	};
 
 	const findLastMessage = async (): Promise<IMessage | undefined> =>
-		messagesCollection.findOne({ rid, tmid: tmid ?? { $exists: false }, _hidden: { $ne: true } }, { sort: { ts: -1 }, reactive: false });
+		Messages.findOne({ rid, tmid: tmid ?? { $exists: false }, _hidden: { $ne: true } }, { sort: { ts: -1 }, reactive: false });
 
 	const getLastMessage = async (): Promise<IMessage> => {
 		const message = await findLastMessage();
@@ -70,7 +64,7 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 			return undefined;
 		}
 
-		return messagesCollection.findOne(
+		return Messages.findOne(
 			{ rid, 'tmid': tmid ?? { $exists: false }, 'u._id': uid, '_hidden': { $ne: true } },
 			{ sort: { ts: -1 }, reactive: false },
 		);
@@ -86,6 +80,30 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 		return message;
 	};
 
+	const canUpdateMessage = async (message: IMessage): Promise<boolean> => {
+		if (MessageTypes.isSystemMessage(message)) {
+			return false;
+		}
+
+		const canEditMessage = hasAtLeastOnePermission('edit-message', message.rid);
+		const editAllowed = (settings.get('Message_AllowEditing') as boolean | undefined) ?? false;
+		const editOwn = message?.u && message.u._id === Meteor.userId();
+
+		if (!canEditMessage && (!editAllowed || !editOwn)) {
+			return false;
+		}
+
+		const blockEditInMinutes = settings.get('Message_AllowEditing_BlockEditInMinutes') as number | undefined;
+		const bypassBlockTimeLimit = hasPermission('bypass-time-limit-edit-and-delete', message.rid);
+
+		const elapsedMinutes = moment().diff(message.ts, 'minutes');
+		if (!bypassBlockTimeLimit && elapsedMinutes && blockEditInMinutes && elapsedMinutes > blockEditInMinutes) {
+			return false;
+		}
+
+		return true;
+	};
+
 	const findPreviousOwnMessage = async (message: IMessage): Promise<IMessage | undefined> => {
 		const uid = Meteor.userId();
 
@@ -93,10 +111,20 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 			return undefined;
 		}
 
-		return messagesCollection.findOne(
+		const msg = Messages.findOne(
 			{ rid, 'tmid': tmid ?? { $exists: false }, 'u._id': uid, '_hidden': { $ne: true }, 'ts': { $lt: message.ts } },
 			{ sort: { ts: -1 }, reactive: false },
 		);
+
+		if (!msg) {
+			return undefined;
+		}
+
+		if (await canUpdateMessage(msg)) {
+			return msg;
+		}
+
+		return findPreviousOwnMessage(msg);
 	};
 
 	const getPreviousOwnMessage = async (message: IMessage): Promise<IMessage> => {
@@ -116,10 +144,20 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 			return undefined;
 		}
 
-		return messagesCollection.findOne(
+		const msg = Messages.findOne(
 			{ rid, 'tmid': tmid ?? { $exists: false }, 'u._id': uid, '_hidden': { $ne: true }, 'ts': { $gt: message.ts } },
 			{ sort: { ts: 1 }, reactive: false },
 		);
+
+		if (!msg) {
+			return undefined;
+		}
+
+		if (await canUpdateMessage(msg)) {
+			return msg;
+		}
+
+		return findNextOwnMessage(msg);
 	};
 
 	const getNextOwnMessage = async (message: IMessage): Promise<IMessage> => {
@@ -133,56 +171,65 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 	};
 
 	const pushEphemeralMessage = async (message: Omit<IMessage, 'rid' | 'tmid'>): Promise<void> => {
-		messagesCollection.upsert({ _id: message._id }, { $set: { ...message, rid, ...(tmid && { tmid }) } });
+		Messages.upsert({ _id: message._id }, { $set: { ...message, rid, ...(tmid && { tmid }) } });
 	};
 
-	const canUpdateMessage = async (message: IMessage): Promise<boolean> => {
-		if (MessageTypes.isSystemMessage(message)) {
-			return false;
-		}
-
-		const hasPermission = hasAtLeastOnePermission('edit-message', message.rid);
-		const editAllowed = (settings.get('Message_AllowEditing') as boolean | undefined) ?? false;
-		const editOwn = message?.u && message.u._id === Meteor.userId();
-
-		if (!hasPermission && (!editAllowed || !editOwn)) {
-			return false;
-		}
-
-		const blockEditInMinutes = settings.get('Message_AllowEditing_BlockEditInMinutes') as number | undefined;
-		const elapsedMinutes = moment().diff(message.ts, 'minutes');
-		if (elapsedMinutes && blockEditInMinutes && elapsedMinutes > blockEditInMinutes) {
-			return false;
-		}
-
-		return true;
-	};
-
-	const updateMessage = async (message: Pick<IMessage, '_id' | 't'> & Partial<Omit<IMessage, '_id' | 't'>>): Promise<void> =>
-		call('updateMessage', message);
+	const updateMessage = async (message: IEditedMessage, previewUrls?: string[]): Promise<void> =>
+		sdk.call('updateMessage', message, previewUrls);
 
 	const canDeleteMessage = async (message: IMessage): Promise<boolean> => {
+		const uid = Meteor.userId();
+
+		if (!uid) {
+			return false;
+		}
+
 		if (MessageTypes.isSystemMessage(message)) {
 			return false;
 		}
 
-		const hasPermission = hasAtLeastOnePermission('force-delete-message', message.rid);
-		if (!hasPermission) {
+		const forceDeleteAllowed = hasPermission('force-delete-message', message.rid);
+		if (forceDeleteAllowed) {
+			return true;
+		}
+
+		const deletionEnabled = settings.get('Message_AllowDeleting') as boolean | undefined;
+		if (!deletionEnabled) {
+			return false;
+		}
+
+		const deleteAnyAllowed = hasPermission('delete-message', rid);
+		const deleteOwnAllowed = hasPermission('delete-own-message');
+		const deleteAllowed = deleteAnyAllowed || (deleteOwnAllowed && message?.u && message.u._id === Meteor.userId());
+
+		if (!deleteAllowed) {
 			return false;
 		}
 
 		const blockDeleteInMinutes = settings.get('Message_AllowDeleting_BlockDeleteInMinutes') as number | undefined;
+		const bypassBlockTimeLimit = hasPermission('bypass-time-limit-edit-and-delete', message.rid);
 		const elapsedMinutes = moment().diff(message.ts, 'minutes');
+		const onTimeForDelete = bypassBlockTimeLimit || !blockDeleteInMinutes || !elapsedMinutes || elapsedMinutes <= blockDeleteInMinutes;
 
-		if (elapsedMinutes && blockDeleteInMinutes && elapsedMinutes > blockDeleteInMinutes) {
-			return false;
-		}
-
-		return true;
+		return deleteAllowed && onTimeForDelete;
 	};
 
-	const deleteMessage = async (mid: IMessage['_id']): Promise<void> => {
-		await call('deleteMessage', { _id: mid });
+	const deleteMessage = async (msgIdOrMsg: IMessage | IMessage['_id']): Promise<void> => {
+		let msgId: string;
+		let roomId: string;
+		if (typeof msgIdOrMsg === 'string') {
+			msgId = msgIdOrMsg;
+			const msg = await findMessageByID(msgId);
+			if (!msg) {
+				throw new Error('Message not found');
+			}
+			roomId = msg.rid;
+		} else {
+			msgId = msgIdOrMsg._id;
+			roomId = msgIdOrMsg.rid;
+		}
+
+		await sdk.rest.post('/v1/chat.delete', { msgId, roomId });
 	};
 
 	const drafts = new Map<IMessage['_id'] | undefined, string>();
@@ -197,7 +244,7 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 		drafts.set(mid, draft);
 	};
 
-	const findRoom = async (): Promise<IRoom | undefined> => roomsCollection.findOne({ _id: rid }, { reactive: false });
+	const findRoom = async (): Promise<IRoom | undefined> => Rooms.findOne({ _id: rid }, { reactive: false });
 
 	const getRoom = async (): Promise<IRoom> => {
 		const room = await findRoom();
@@ -209,17 +256,14 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 		return room;
 	};
 
-	const isSubscribedToRoom = async (): Promise<boolean> => !!subscriptionsCollection.findOne({ rid }, { reactive: false });
+	const isSubscribedToRoom = async (): Promise<boolean> => !!Subscriptions.findOne({ rid }, { reactive: false });
 
-	const joinRoom = async (): Promise<void> => call('joinRoom', rid);
-
-	const markRoomAsRead = async (): Promise<void> => {
-		readMessage.readNow(rid);
-		readMessage.refreshUnreadMark(rid);
+	const joinRoom = async (): Promise<void> => {
+		await sdk.call('joinRoom', rid);
 	};
 
 	const findDiscussionByID = async (drid: IRoom['_id']): Promise<IRoom | undefined> =>
-		roomsCollection.findOne({ _id: drid, prid: { $exists: true } }, { reactive: false });
+		Rooms.findOne({ _id: drid, prid: { $exists: true } }, { reactive: false });
 
 	const getDiscussionByID = async (drid: IRoom['_id']): Promise<IRoom> => {
 		const discussion = await findDiscussionByID(drid);
@@ -230,6 +274,33 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 
 		return discussion;
 	};
+
+	const createStrictGetter = <TFind extends (...args: any[]) => Promise<any>>(
+		find: TFind,
+		errorMessage: string,
+	): ((...args: Parameters<TFind>) => Promise<Exclude<Awaited<ReturnType<TFind>>, undefined>>) => {
+		return async (...args) => {
+			const result = await find(...args);
+
+			if (!result) {
+				throw new Error(errorMessage);
+			}
+
+			return result;
+		};
+	};
+
+	const findSubscription = async (): Promise<ISubscription | undefined> => {
+		return Subscriptions.findOne({ rid }, { reactive: false });
+	};
+
+	const getSubscription = createStrictGetter(findSubscription, 'Subscription not found');
+
+	const findSubscriptionFromMessage = async (message: IMessage): Promise<ISubscription | undefined> => {
+		return Subscriptions.findOne({ rid: message.rid }, { reactive: false });
+	};
+
+	const getSubscriptionFromMessage = createStrictGetter(findSubscriptionFromMessage, 'Subscription not found');
 
 	return {
 		composeMessage,
@@ -255,8 +326,11 @@ export const createDataAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid: IMessage
 		getRoom,
 		isSubscribedToRoom,
 		joinRoom,
-		markRoomAsRead,
 		findDiscussionByID,
 		getDiscussionByID,
+		findSubscription,
+		getSubscription,
+		findSubscriptionFromMessage,
+		getSubscriptionFromMessage,
 	};
 };

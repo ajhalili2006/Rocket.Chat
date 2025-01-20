@@ -1,11 +1,11 @@
 import { Box, Button } from '@rocket.chat/fuselage';
 import * as UiKit from '@rocket.chat/ui-kit';
 import type { ReactElement } from 'react';
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 
-import { useSurfaceType } from '../contexts/SurfaceContext';
-import type { BlockProps } from '../utils/BlockProps';
 import Action from './ActionsBlock.Action';
+import { useSurfaceType } from '../hooks/useSurfaceType';
+import type { BlockProps } from '../utils/BlockProps';
 
 type ActionsBlockProps = BlockProps<UiKit.ActionsBlock>;
 
@@ -17,7 +17,7 @@ const ActionsBlock = ({
   const surfaceType = useSurfaceType();
 
   const [showMoreVisible, setShowMoreVisible] = useState(
-    () => block.elements.length > 5 && surfaceType !== 'banner'
+    () => block.elements.length > 5 && surfaceType !== 'banner',
   );
 
   const handleShowMoreClick = useCallback(() => {
@@ -31,9 +31,9 @@ const ActionsBlock = ({
           ...element,
           appId: element.appId ?? block.appId,
           blockId: element.blockId ?? block.blockId,
-        })
+        }),
       ),
-    [block.appId, block.blockId, block.elements, showMoreVisible]
+    [block.appId, block.blockId, block.elements, showMoreVisible],
   );
 
   return (
@@ -47,7 +47,7 @@ const ActionsBlock = ({
             {surfaceRenderer.renderTextObject(
               { type: 'plain_text', text: 'Show more...' },
               0,
-              UiKit.BlockContext.NONE
+              UiKit.BlockContext.NONE,
             )}
           </Button>
         </Box>

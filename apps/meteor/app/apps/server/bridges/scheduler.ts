@@ -1,12 +1,11 @@
 import type { Job } from '@rocket.chat/agenda';
 import { Agenda } from '@rocket.chat/agenda';
-import { ObjectID } from 'bson';
-import { MongoInternals } from 'meteor/mongo';
+import type { IAppServerOrchestrator } from '@rocket.chat/apps';
 import type { IProcessor, IOnetimeSchedule, IRecurringSchedule, IJobContext } from '@rocket.chat/apps-engine/definition/scheduler';
 import { StartupType } from '@rocket.chat/apps-engine/definition/scheduler';
 import { SchedulerBridge } from '@rocket.chat/apps-engine/server/bridges/SchedulerBridge';
-
-import type { AppServerOrchestrator } from '../orchestrator';
+import { ObjectId } from 'bson';
+import { MongoInternals } from 'meteor/mongo';
 
 function _callProcessor(processor: IProcessor['processor']): (job: Job) => Promise<void> {
 	return (job) => {
@@ -17,11 +16,11 @@ function _callProcessor(processor: IProcessor['processor']): (job: Job) => Promi
 
 		data.jobId = job.attrs._id.toString();
 
-		return (processor as (jobContext: IJobContext) => Promise<void>)(data).then(() => {
+		return (processor as (jobContext: IJobContext) => Promise<void>)(data).then(async () => {
 			// ensure the 'normal' ('onetime' in our vocab) type job is removed after it is run
 			// as Agenda does not remove it from the DB
 			if (job.attrs.type === 'normal') {
-				job.agenda.cancel({ _id: job.attrs._id });
+				await job.agenda.cancel({ _id: job.attrs._id });
 			}
 		});
 	};
@@ -36,8 +35,7 @@ export class AppSchedulerBridge extends SchedulerBridge {
 
 	private scheduler: Agenda;
 
-	// eslint-disable-next-line no-empty-function
-	constructor(private readonly orch: AppServerOrchestrator) {
+	constructor(private readonly orch: IAppServerOrchestrator) {
 		super();
 		this.scheduler = new Agenda({
 			mongo: (MongoInternals.defaultRemoteCollectionDriver().mongo as any).client.db(),
@@ -161,7 +159,7 @@ export class AppSchedulerBridge extends SchedulerBridge {
 
 		let cancelQuery;
 		try {
-			cancelQuery = { _id: new ObjectID(jobId.split('_')[0]) };
+			cancelQuery = { _id: new ObjectId(jobId.split('_')[0]) };
 		} catch (jobDocIdError) {
 			// it is not a valid objectid, so it won't try to cancel by document id
 			cancelQuery = { name: jobId };

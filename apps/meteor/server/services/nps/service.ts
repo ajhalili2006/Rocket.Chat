@@ -1,14 +1,13 @@
 import { createHash } from 'crypto';
 
+import type { INPSService, NPSVotePayload, NPSCreatePayload } from '@rocket.chat/core-services';
+import { ServiceClassInternal, Banner, NPS } from '@rocket.chat/core-services';
 import type { INpsVote, INps } from '@rocket.chat/core-typings';
 import { NPSStatus, INpsVoteStatus } from '@rocket.chat/core-typings';
 import { Nps, NpsVote, Settings } from '@rocket.chat/models';
 
-import type { INPSService, NPSVotePayload, NPSCreatePayload } from '../../sdk/types/INPSService';
-import { ServiceClassInternal } from '../../sdk/types/ServiceClass';
-import { Banner, NPS } from '../../sdk';
-import { sendNpsResults } from './sendNpsResults';
 import { getBannerForAdmins, notifyAdmins } from './notification';
+import { sendNpsResults } from './sendNpsResults';
 import { SystemLogger } from '../../lib/logger/system';
 
 export class NPSService extends ServiceClassInternal implements INPSService {
@@ -22,9 +21,12 @@ export class NPSService extends ServiceClassInternal implements INPSService {
 
 		const any = await Nps.findOne({}, { projection: { _id: 1 } });
 		if (!any) {
-			Banner.create(getBannerForAdmins(nps.startAt));
+			if (nps.expireAt < nps.startAt || nps.expireAt < new Date()) {
+				throw new Error('NPS already expired');
+			}
+			await Banner.create(getBannerForAdmins(nps.expireAt));
 
-			notifyAdmins(nps.startAt);
+			await notifyAdmins(nps.startAt);
 		}
 
 		const { npsId, startAt, expireAt, createdBy } = nps;
@@ -58,14 +60,14 @@ export class NPSService extends ServiceClassInternal implements INPSService {
 			return;
 		}
 
-		const total = await NpsVote.findByNpsId(nps._id).count();
+		const total = await NpsVote.countByNpsId(nps._id);
 
 		const votesToSend = await NpsVote.findNotSentByNpsId(nps._id).toArray();
 
 		// if there is nothing to sent, check if something gone wrong
 		if (votesToSend.length === 0) {
 			// check if still has votes left to send
-			const totalSent = await NpsVote.findByNpsIdAndStatus(nps._id, INpsVoteStatus.SENT).count();
+			const totalSent = await NpsVote.countByNpsIdAndStatus(nps._id, INpsVoteStatus.SENT);
 			if (totalSent === total) {
 				await Nps.updateStatusById(nps._id, NPSStatus.SENT);
 				return;
@@ -83,7 +85,7 @@ export class NPSService extends ServiceClassInternal implements INPSService {
 
 		const sending = await Promise.all(
 			votesToSend.map(async (vote) => {
-				const { value } = await NpsVote.col.findOneAndUpdate(
+				const value = await NpsVote.findOneAndUpdate(
 					{
 						_id: vote._id,
 						status: INpsVoteStatus.NEW,
@@ -122,12 +124,13 @@ export class NPSService extends ServiceClassInternal implements INPSService {
 				total,
 				votes: votesWithoutIds,
 			};
-			sendNpsResults(nps._id, payload);
+
+			await sendNpsResults(nps._id, payload);
 
 			await NpsVote.updateVotesToSent(voteIds);
 		}
 
-		const totalSent = await NpsVote.findByNpsIdAndStatus(nps._id, INpsVoteStatus.SENT).count();
+		const totalSent = await NpsVote.countByNpsIdAndStatus(nps._id, INpsVoteStatus.SENT);
 		if (totalSent < total) {
 			// send more in five minutes
 			setTimeout(() => NPS.sendResults(), 5 * 60 * 1000);

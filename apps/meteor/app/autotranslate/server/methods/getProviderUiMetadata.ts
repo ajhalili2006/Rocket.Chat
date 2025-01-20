@@ -1,8 +1,16 @@
+import type { ServerMethods } from '@rocket.chat/ddp-client';
 import { Meteor } from 'meteor/meteor';
 
 import { TranslationProviderRegistry } from '../autotranslate';
 
-Meteor.methods({
+declare module '@rocket.chat/ddp-client' {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	interface ServerMethods {
+		'autoTranslate.getProviderUiMetadata'(): Record<string, { name: string; displayName: string }>;
+	}
+}
+
+Meteor.methods<ServerMethods>({
 	'autoTranslate.getProviderUiMetadata'() {
 		if (!Meteor.userId()) {
 			throw new Meteor.Error('error-action-not-allowed', 'Login neccessary', {

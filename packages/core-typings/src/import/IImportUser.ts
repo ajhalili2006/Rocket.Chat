@@ -16,4 +16,7 @@ export interface IImportUser {
 
 	services?: Record<string, Record<string, any>>;
 	customFields?: Record<string, any>;
+
+	password?: string;
+	voipExtension?: string;
 }

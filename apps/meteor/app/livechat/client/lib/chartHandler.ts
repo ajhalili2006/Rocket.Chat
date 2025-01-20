@@ -1,10 +1,12 @@
-import type { ChartItem, Chart as ChartType, ChartConfiguration } from 'chart.js';
-import { TAPi18n } from 'meteor/rocketchat:tap-i18n';
+import type * as chartjs from 'chart.js';
+
+import { t } from '../../../utils/lib/i18n';
 
 type LineChartConfigOptions = Partial<{
 	legends: boolean;
 	anim: boolean;
 	displayColors: boolean;
+	smallTicks: boolean;
 	tooltipCallbacks: any;
 }>;
 
@@ -12,8 +14,8 @@ const lineChartConfiguration = ({
 	legends = false,
 	anim = false,
 	tooltipCallbacks = {},
-}: LineChartConfigOptions): Partial<ChartConfiguration<'line', number, string>['options']> => {
-	const config: ChartConfiguration<'line', number, string>['options'] = {
+}: LineChartConfigOptions): Partial<chartjs.ChartConfiguration<'line', number, string>['options']> => {
+	const config: chartjs.ChartConfiguration<'line', number, string>['options'] = {
 		layout: {
 			padding: {
 				top: 10,
@@ -69,7 +71,7 @@ const lineChartConfiguration = ({
 const doughnutChartConfiguration = (
 	title: string,
 	tooltipCallbacks = {},
-): Partial<ChartConfiguration<'doughnut', number, string>['options']> => ({
+): Partial<chartjs.ChartConfiguration<'doughnut', number, string>['options']> => ({
 	layout: {
 		padding: {
 			top: 0,
@@ -107,43 +109,33 @@ const doughnutChartConfiguration = (
 
 type ChartDataSet = {
 	label: string;
-	data: number;
+	data: number[];
 	backgroundColor: string;
 	borderColor: string;
 	borderWidth: number;
 	fill: boolean;
 };
 
-/**
- *
- * @param {Object} chart - chart element
- * @param {Object} chartContext - Context of chart
- * @param {Array(String)} chartLabel
- * @param {Array(String)} dataLabels
- * @param {Array(Array(Double))} dataPoints
- */
 export const drawLineChart = async (
 	chart: HTMLCanvasElement,
-	chartContext: { destroy: () => void } | undefined,
+	chartContext: chartjs.Chart<'line'> | undefined,
 	chartLabels: string[],
 	dataLabels: string[],
-	dataSets: number[],
+	dataSets: number[][],
 	options: LineChartConfigOptions = {},
-): Promise<ChartType<'line', number, string> | void> => {
+) => {
 	if (!chart) {
-		console.error('No chart element');
-		return;
+		throw new Error('No chart element');
 	}
-	if (chartContext) {
-		chartContext.destroy();
-	}
+	chartContext?.destroy();
+
 	const colors = ['#2de0a5', '#ffd21f', '#f5455c', '#cbced1'];
 
 	const datasets: ChartDataSet[] = [];
 
-	chartLabels.forEach(function (chartLabel: string, index: number) {
+	chartLabels.forEach((chartLabel: string, index: number) => {
 		datasets.push({
-			label: TAPi18n.__(chartLabel), // chart label
+			label: t(chartLabel), // chart label
 			data: dataSets[index], // data points corresponding to data labels, x-axis points
 			backgroundColor: colors[index],
 			borderColor: colors[index],
@@ -151,8 +143,8 @@ export const drawLineChart = async (
 			fill: false,
 		});
 	});
-	const chartjs = await import('chart.js/auto');
-	const Chart = chartjs.default;
+
+	const { default: Chart } = await import('chart.js/auto');
 	return new Chart(chart, {
 		type: 'line',
 		data: {
@@ -163,29 +155,19 @@ export const drawLineChart = async (
 	});
 };
 
-/**
- *
- * @param {Object} chart - chart element
- * @param {Object} chartContext - Context of chart
- * @param {Array(String)} dataLabels
- * @param {Array(Double)} dataPoints
- */
 export const drawDoughnutChart = async (
-	chart: ChartItem,
+	chart: chartjs.ChartItem,
 	title: string,
-	chartContext: { destroy: () => void } | undefined,
+	chartContext: chartjs.Chart<'doughnut'> | undefined,
 	dataLabels: string[],
 	dataPoints: number[],
-): Promise<ChartType<'doughnut', number[], string> | void> => {
+) => {
 	if (!chart) {
-		console.error('No chart element');
-		return;
+		throw new Error('No chart element');
 	}
-	if (chartContext) {
-		chartContext.destroy();
-	}
-	const chartjs = await import('chart.js/auto');
-	const Chart = chartjs.default;
+	chartContext?.destroy();
+
+	const { default: Chart } = await import('chart.js/auto');
 	return new Chart(chart, {
 		type: 'doughnut',
 		data: {
@@ -202,18 +184,15 @@ export const drawDoughnutChart = async (
 	});
 };
 
-/**
- * Update chart
- * @param  {Object} chart [Chart context]
- * @param  {String} label [chart label]
- * @param  {Array(Double)} data  [updated data]
- */
-export const updateChart = async (c: ChartType, label: string, data: { [x: string]: number }): Promise<void> => {
-	const chart = await c;
+export const updateChart = async <TChartType extends chartjs.ChartType>(
+	chart: chartjs.Chart<TChartType>,
+	label: string,
+	data: chartjs.DefaultDataPoint<TChartType>,
+): Promise<void> => {
 	if (chart.data?.labels?.indexOf(label) === -1) {
 		// insert data
 		chart.data.labels.push(label);
-		chart.data.datasets.forEach((dataset: { data: any[] }, idx: string | number) => {
+		chart.data.datasets.forEach((dataset: { data: any[] }, idx: number) => {
 			dataset.data.push(data[idx]);
 		});
 	} else {
@@ -223,7 +202,7 @@ export const updateChart = async (c: ChartType, label: string, data: { [x: strin
 			return;
 		}
 
-		chart.data.datasets.forEach((dataset: { data: { [x: string]: any } }, idx: string | number) => {
+		chart.data.datasets.forEach((dataset: { data: { [x: string]: any } }, idx: number) => {
 			dataset.data[index] = data[idx];
 		});
 	}

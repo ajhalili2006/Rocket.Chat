@@ -1,10 +1,11 @@
 import type { Readable } from 'stream';
 
-import type { Request } from 'express';
-import busboy from 'busboy';
+import { MeteorError } from '@rocket.chat/core-services';
 import type { ValidateFunction } from 'ajv';
+import busboy from 'busboy';
+import type { Request } from 'express';
 
-import { MeteorError } from '../../../../server/sdk/errors';
+import { getMimeType } from '../../../utils/lib/mimeTypes';
 
 type UploadResult<K> = {
 	file: Readable & { truncated: boolean };
@@ -16,6 +17,14 @@ type UploadResult<K> = {
 	fields: K;
 };
 
+type UploadResultWithOptionalFile<K> =
+	| UploadResult<K>
+	| ({
+			[P in keyof Omit<UploadResult<K>, 'fields'>]: undefined;
+	  } & {
+			fields: K;
+	  });
+
 export async function getUploadFormData<
 	T extends string,
 	K extends Record<string, string> = Record<string, string>,
@@ -26,8 +35,37 @@ export async function getUploadFormData<
 		field?: T;
 		validate?: V;
 		sizeLimit?: number;
+		fileOptional: true;
+	},
+): Promise<UploadResultWithOptionalFile<K>>;
+
+export async function getUploadFormData<
+	T extends string,
+	K extends Record<string, string> = Record<string, string>,
+	V extends ValidateFunction<K> = ValidateFunction<K>,
+>(
+	{ request }: { request: Request },
+	options?: {
+		field?: T;
+		validate?: V;
+		sizeLimit?: number;
+		fileOptional?: false | undefined;
+	},
+): Promise<UploadResult<K>>;
+
+export async function getUploadFormData<
+	T extends string,
+	K extends Record<string, string> = Record<string, string>,
+	V extends ValidateFunction<K> = ValidateFunction<K>,
+>(
+	{ request }: { request: Request },
+	options: {
+		field?: T;
+		validate?: V;
+		sizeLimit?: number;
+		fileOptional?: boolean;
 	} = {},
-): Promise<UploadResult<K>> {
+): Promise<UploadResultWithOptionalFile<K>> {
 	const limits = {
 		files: 1,
 		...(options.sizeLimit && options.sizeLimit > -1 && { fileSize: options.sizeLimit }),
@@ -36,9 +74,17 @@ export async function getUploadFormData<
 	const bb = busboy({ headers: request.headers, defParamCharset: 'utf8', limits });
 	const fields = Object.create(null) as K;
 
-	let uploadedFile: UploadResult<K> | undefined;
+	let uploadedFile: UploadResultWithOptionalFile<K> | undefined = {
+		fields,
+		encoding: undefined,
+		filename: undefined,
+		fieldname: undefined,
+		mimetype: undefined,
+		fileBuffer: undefined,
+		file: undefined,
+	};
 
-	let returnResult = (_value: UploadResult<K>) => {
+	let returnResult = (_value: UploadResultWithOptionalFile<K>) => {
 		// noop
 	};
 	let returnError = (_error?: Error | string | null | undefined) => {
@@ -51,6 +97,9 @@ export async function getUploadFormData<
 
 	function onEnd() {
 		if (!uploadedFile) {
+			return returnError(new MeteorError('No file or fields were uploaded'));
+		}
+		if (!options.fileOptional && !uploadedFile?.file) {
 			return returnError(new MeteorError('No file uploaded'));
 		}
 		if (options.validate !== undefined && !options.validate(fields)) {
@@ -70,11 +119,11 @@ export async function getUploadFormData<
 		}
 
 		const fileChunks: Uint8Array[] = [];
-		file.on('data', function (chunk) {
+		file.on('data', (chunk) => {
 			fileChunks.push(chunk);
 		});
 
-		file.on('end', function () {
+		file.on('end', () => {
 			if (file.truncated) {
 				fileChunks.length = 0;
 				return returnError(new MeteorError('error-file-too-large'));
@@ -84,7 +133,7 @@ export async function getUploadFormData<
 				file,
 				filename,
 				encoding,
-				mimetype,
+				mimetype: getMimeType(mimetype, filename),
 				fieldname,
 				fields,
 				fileBuffer: Buffer.concat(fileChunks),
@@ -104,23 +153,23 @@ export async function getUploadFormData<
 	bb.on('end', onEnd);
 	bb.on('finish', onEnd);
 
-	bb.on('error', function (err: Error) {
+	bb.on('error', (err: Error) => {
 		returnError(err);
 	});
 
-	bb.on('partsLimit', function () {
+	bb.on('partsLimit', () => {
 		returnError();
 	});
-	bb.on('filesLimit', function () {
+	bb.on('filesLimit', () => {
 		returnError('Just 1 file is allowed');
 	});
-	bb.on('fieldsLimit', function () {
+	bb.on('fieldsLimit', () => {
 		returnError();
 	});
 
 	request.pipe(bb);
 
-	return new Promise((resolve, reject) => {
+	return new Promise<UploadResultWithOptionalFile<K>>((resolve, reject) => {
 		returnResult = resolve;
 		returnError = reject;
 	});

@@ -1,9 +1,8 @@
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
 
-import { OtrRoomState } from '../../../../../app/otr/lib/OtrRoomState';
-import VerticalBar from '../../../../components/VerticalBar';
 import OTR from './OTR';
+import { OtrRoomState } from '../../../../../app/otr/lib/OtrRoomState';
+import { Contextualbar } from '../../../../components/Contextualbar';
 
 export default {
 	title: 'Room/Contextual Bar/OTR',
@@ -12,10 +11,10 @@ export default {
 		layout: 'fullscreen',
 		actions: { argTypesRegex: '^on.*' },
 	},
-	decorators: [(fn) => <VerticalBar height='100vh'>{fn()}</VerticalBar>],
-} as ComponentMeta<typeof OTR>;
+	decorators: [(fn) => <Contextualbar height='100vh'>{fn()}</Contextualbar>],
+} satisfies Meta<typeof OTR>;
 
-const Template: ComponentStory<typeof OTR> = (args) => <OTR {...args} />;
+const Template: StoryFn<typeof OTR> = (args) => <OTR {...args} />;
 
 export const Default = Template.bind({});
 Default.args = {

@@ -1,10 +1,12 @@
-import type { ILivechatDepartmentRecord } from '@rocket.chat/core-typings';
-import { useEndpoint, useTranslation } from '@rocket.chat/ui-contexts';
+import { useEndpoint } from '@rocket.chat/ui-contexts';
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useScrollableRecordList } from '../../../hooks/lists/useScrollableRecordList';
 import { useComponentDidUpdate } from '../../../hooks/useComponentDidUpdate';
 import { RecordList } from '../../../lib/lists/RecordList';
+import type { DepartmentListItem } from '../Definitions/DepartmentsDefinitions';
+import { normalizeDepartments } from '../utils/normalizeDepartments';
 
 type DepartmentsListOptions = {
 	filter: string;
@@ -14,28 +16,31 @@ type DepartmentsListOptions = {
 	haveNone?: boolean;
 	excludeDepartmentId?: string;
 	enabled?: boolean;
+	showArchived?: boolean;
+	selectedDepartment?: string;
 };
 
 export const useDepartmentsList = (
 	options: DepartmentsListOptions,
 ): {
-	itemsList: RecordList<ILivechatDepartmentRecord>;
+	itemsList: RecordList<DepartmentListItem>;
 	initialItemCount: number;
 	reload: () => void;
 	loadMoreItems: (start: number, end: number) => void;
 } => {
-	const t = useTranslation();
-	const [itemsList, setItemsList] = useState(() => new RecordList<ILivechatDepartmentRecord>());
-	const reload = useCallback(() => setItemsList(new RecordList<ILivechatDepartmentRecord>()), []);
+	const { t } = useTranslation();
+	const [itemsList, setItemsList] = useState(() => new RecordList<DepartmentListItem>());
+	const reload = useCallback(() => setItemsList(new RecordList<DepartmentListItem>()), []);
 
 	const getDepartments = useEndpoint('GET', '/v1/livechat/department');
+	const getDepartment = useEndpoint('GET', '/v1/livechat/department/:_id', { _id: options.selectedDepartment ?? '' });
 
 	useComponentDidUpdate(() => {
 		options && reload();
 	}, [options, reload]);
 
 	const fetchData = useCallback(
-		async (start, end) => {
+		async (start: number, end: number) => {
 			const { departments, total } = await getDepartments({
 				onlyMyDepartments: `${!!options.onlyMyDepartments}`,
 				text: options.filter,
@@ -44,6 +49,7 @@ export const useDepartmentsList = (
 				sort: `{ "name": 1 }`,
 				excludeDepartmentId: options.excludeDepartmentId,
 				enabled: options.enabled ? 'true' : 'false',
+				showArchived: options.showArchived ? 'true' : 'false',
 			});
 
 			const items = departments
@@ -53,41 +59,47 @@ export const useDepartmentsList = (
 					}
 					return true;
 				})
-				.map((department: any) => {
-					department._updatedAt = new Date(department._updatedAt);
-					department.label = department.name;
-					department.value = { value: department._id, label: department.name };
-					return department;
-				});
+				.map(
+					({ _id, name, ...department }): DepartmentListItem => ({
+						_id,
+						label: department.archived ? `${name} [${t('Archived')}]` : name,
+						value: _id,
+					}),
+				);
+
+			const normalizedItems = await normalizeDepartments(items, options.selectedDepartment ?? '', getDepartment);
 
 			options.haveAll &&
-				items.unshift({
+				normalizedItems.unshift({
+					_id: '',
 					label: t('All'),
-					value: { value: 'all', label: t('All') },
-					_updatedAt: new Date(),
+					value: 'all',
 				});
 
 			options.haveNone &&
-				items.unshift({
+				normalizedItems.unshift({
+					_id: '',
 					label: t('None'),
-					value: { value: '', label: t('None') },
-					_updatedAt: new Date(),
+					value: '',
 				});
 
 			return {
-				items,
+				items: normalizedItems,
 				itemCount: options.departmentId ? total - 1 : total,
 			};
 		},
 		[
 			getDepartments,
-			options.departmentId,
-			options.filter,
-			options.haveAll,
 			options.onlyMyDepartments,
-			options.haveNone,
+			options.filter,
 			options.excludeDepartmentId,
 			options.enabled,
+			options.showArchived,
+			options.selectedDepartment,
+			options.haveAll,
+			options.haveNone,
+			options.departmentId,
+			getDepartment,
 			t,
 		],
 	);

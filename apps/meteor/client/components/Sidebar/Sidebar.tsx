@@ -1,11 +1,8 @@
-import { Box } from '@rocket.chat/fuselage';
-import type { FC } from 'react';
-import React from 'react';
+import { Sidebar as FuselageSidebar } from '@rocket.chat/fuselage';
+import type { ComponentPropsWithoutRef } from 'react';
 
-const Sidebar: FC = ({ children, ...props }) => (
-	<Box display='flex' flexDirection='column' h='full' justifyContent='stretch' {...props}>
-		{children}
-	</Box>
-);
+type SidebarProps = ComponentPropsWithoutRef<typeof FuselageSidebar>;
+
+const Sidebar = (props: SidebarProps) => <FuselageSidebar {...props} role='navigation' display='flex' flexDirection='column' h='full' />;
 
 export default Sidebar;

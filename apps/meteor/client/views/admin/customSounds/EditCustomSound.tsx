@@ -1,10 +1,10 @@
-import { Box, Button, ButtonGroup, Skeleton, Throbber, InputBox } from '@rocket.chat/fuselage';
+import { useEndpoint } from '@rocket.chat/ui-contexts';
+import { useQuery } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
-import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { AsyncStatePhase } from '../../../hooks/useAsyncState';
-import { useEndpointData } from '../../../hooks/useEndpointData';
 import EditSound from './EditSound';
+import { FormSkeleton } from '../../../components/Skeleton';
 
 type EditCustomSoundProps = {
 	_id: string | undefined;
@@ -12,49 +12,38 @@ type EditCustomSoundProps = {
 	close?: () => void;
 };
 
-function EditCustomSound({ _id, onChange, ...props }: EditCustomSoundProps): ReactElement {
-	const query = useMemo(() => ({ query: JSON.stringify({ _id }) }), [_id]);
+function EditCustomSound({ _id, onChange, ...props }: EditCustomSoundProps): ReactElement | null {
+	const { t } = useTranslation();
+	const getSounds = useEndpoint('GET', '/v1/custom-sounds.list');
 
-	const { value: data, phase: state, error, reload } = useEndpointData('/v1/custom-sounds.list', query);
+	const { data, isPending, refetch } = useQuery({
+		queryKey: ['custom-sounds', _id],
 
-	if (state === AsyncStatePhase.LOADING) {
-		return (
-			<Box pb='x20'>
-				<Skeleton mbs='x8' />
-				<InputBox.Skeleton w='full' />
-				<Skeleton mbs='x8' />
-				<InputBox.Skeleton w='full' />
-				<ButtonGroup stretch w='full' mbs='x8'>
-					<Button disabled>
-						<Throbber inheritColor />
-					</Button>
-					<Button primary disabled>
-						<Throbber inheritColor />
-					</Button>
-				</ButtonGroup>
-				<ButtonGroup stretch w='full' mbs='x8'>
-					<Button danger disabled>
-						<Throbber inheritColor />
-					</Button>
-				</ButtonGroup>
-			</Box>
-		);
+		queryFn: async () => {
+			const { sounds } = await getSounds({ query: JSON.stringify({ _id }) });
+
+			if (sounds.length === 0) {
+				throw new Error(t('No_results_found'));
+			}
+			return sounds[0];
+		},
+		meta: { apiErrorToastMessage: true },
+	});
+
+	if (isPending) {
+		return <FormSkeleton pi={20} />;
 	}
 
-	if (error || !data || data.sounds.length < 1) {
-		return (
-			<Box fontScale='h2' pb='x20'>
-				{error}
-			</Box>
-		);
+	if (!data) {
+		return null;
 	}
 
 	const handleChange: () => void = () => {
 		onChange?.();
-		reload?.();
+		refetch?.();
 	};
 
-	return <EditSound data={data.sounds[0]} onChange={handleChange} {...props} />;
+	return <EditSound data={data} onChange={handleChange} {...props} />;
 }
 
 export default EditCustomSound;

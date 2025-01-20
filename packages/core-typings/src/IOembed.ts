@@ -1,8 +1,4 @@
-import type Url from 'url';
-
 import type { MessageAttachment } from './IMessage';
-
-export type ParsedUrl = Pick<Url.UrlWithParsedQuery, 'host' | 'hash' | 'pathname' | 'protocol' | 'port' | 'query' | 'search' | 'hostname'>;
 
 export type OEmbedMeta = {
 	[key: string]: string;
@@ -12,8 +8,7 @@ export type OEmbedMeta = {
 };
 
 export type OEmbedUrlContent = {
-	urlObj: Url.UrlWithParsedQuery;
-	parsedUrl: ParsedUrl;
+	urlObj: URL;
 	headers: { [k: string]: string };
 	body: string;
 	statusCode: number;
@@ -21,13 +16,13 @@ export type OEmbedUrlContent = {
 
 export type OEmbedProvider = {
 	urls: RegExp[];
-	endPoint: string;
+	endPoint?: string;
+	getHeaderOverrides?: () => { [k: string]: string };
 };
 
 export type OEmbedUrlContentResult = {
 	headers: { [key: string]: string };
 	body: string;
-	parsedUrl: Pick<Url.UrlWithStringQuery, 'host' | 'hash' | 'pathname' | 'protocol' | 'port' | 'query' | 'search' | 'hostname'>;
 	statusCode: number;
 	attachments?: MessageAttachment[];
 };
@@ -38,7 +33,6 @@ export type OEmbedUrlWithMetadata = {
 	url: string;
 	meta: OEmbedMeta;
 	headers: { [k: string]: string };
-	parsedUrl: Pick<Url.UrlWithStringQuery, 'host' | 'hash' | 'pathname' | 'protocol' | 'port' | 'query' | 'search' | 'hostname'>;
 	content: OEmbedUrlContent;
 };
 

@@ -1,8 +1,7 @@
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
 
-import VerticalBar from '../../../../components/VerticalBar';
 import AutoTranslate from './AutoTranslate';
+import { Contextualbar } from '../../../../components/Contextualbar';
 
 export default {
 	title: 'Room/Contextual Bar/AutoTranslate',
@@ -10,10 +9,10 @@ export default {
 	parameters: {
 		layout: 'fullscreen',
 	},
-	decorators: [(fn) => <VerticalBar height='100vh'>{fn()}</VerticalBar>],
-} as ComponentMeta<typeof AutoTranslate>;
+	decorators: [(fn) => <Contextualbar height='100vh'>{fn()}</Contextualbar>],
+} satisfies Meta<typeof AutoTranslate>;
 
-export const Default: ComponentStory<typeof AutoTranslate> = (args) => <AutoTranslate {...args} />;
+export const Default: StoryFn<typeof AutoTranslate> = (args) => <AutoTranslate {...args} />;
 Default.storyName = 'AutoTranslate';
 Default.args = {
 	language: 'en',

@@ -1,5 +1,9 @@
-import { onLicense } from '../../license/server';
+import { License } from '@rocket.chat/license';
 
-onLicense('canned-responses', async () => {
+await License.onLicense('canned-responses', async () => {
 	await import('./canned-responses');
+});
+
+License.onValidateLicense(async () => {
+	await import('./voip-freeswitch');
 });

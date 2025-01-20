@@ -1,3 +1,4 @@
+import type { RocketChatRecordDeleted } from '@rocket.chat/core-typings';
 import type {
 	BulkWriteOptions,
 	ChangeStream,
@@ -8,26 +9,27 @@ import type {
 	EnhancedOmit,
 	Filter,
 	FindCursor,
+	FindOneAndDeleteOptions,
 	FindOneAndUpdateOptions,
 	FindOptions,
 	InsertManyResult,
 	InsertOneOptions,
 	InsertOneResult,
-	ModifyResult,
 	OptionalId,
 	UpdateFilter,
 	UpdateOptions,
 	UpdateResult,
 	WithId,
 } from 'mongodb';
-import type { RocketChatRecordDeleted } from '@rocket.chat/core-typings';
+
+import type { Updater } from '../updater';
 
 export type DefaultFields<Base> = Record<keyof Base, 1> | Record<keyof Base, 0> | void;
 export type ResultFields<Base, Defaults> = Defaults extends void
 	? Base
 	: Defaults[keyof Defaults] extends 1
-	? Pick<Defaults, keyof Defaults>
-	: Omit<Defaults, keyof Defaults>;
+		? Pick<Defaults, keyof Defaults>
+		: Omit<Defaults, keyof Defaults>;
 
 export type InsertionModel<T> = EnhancedOmit<OptionalId<T>, '_updatedAt'> & {
 	_updatedAt?: Date;
@@ -45,23 +47,31 @@ export interface IBaseModel<
 > {
 	col: Collection<T>;
 
-	getCollectionName(): string;
+	createIndexes(): Promise<string[] | void>;
 
-	findOneAndUpdate(query: Filter<T>, update: UpdateFilter<T> | T, options?: FindOneAndUpdateOptions): Promise<ModifyResult<T>>;
+	getCollectionName(): string;
+	getUpdater(): Updater<T>;
+	updateFromUpdater(query: Filter<T>, updater: Updater<T>): Promise<UpdateResult>;
+
+	findOneAndDelete(filter: Filter<T>, options?: FindOneAndDeleteOptions): Promise<null | WithId<T>>;
+	findOneAndUpdate(query: Filter<T>, update: UpdateFilter<T> | T, options?: FindOneAndUpdateOptions): Promise<null | WithId<T>>;
 
 	findOneById(_id: T['_id'], options?: FindOptions<T> | undefined): Promise<T | null>;
-	findOneById<P = T>(_id: T['_id'], options?: FindOptions<P>): Promise<P | null>;
+	findOneById<P extends Document = T>(_id: T['_id'], options?: FindOptions<P>): Promise<P | null>;
 	findOneById(_id: T['_id'], options?: any): Promise<T | null>;
 
 	findOne(query?: Filter<T> | T['_id'], options?: undefined): Promise<T | null>;
-	findOne<P = T>(query: Filter<T> | T['_id'], options: FindOptions<P extends T ? T : P>): Promise<P | null>;
+	findOne<P extends Document = T>(query: Filter<T> | T['_id'], options: FindOptions<P extends T ? T : P>): Promise<P | null>;
 	findOne<P>(query: Filter<T> | T['_id'], options?: any): Promise<WithId<T> | WithId<P> | null>;
 
 	find(query?: Filter<T>): FindCursor<ResultFields<T, C>>;
-	find<P = T>(query: Filter<T>, options: FindOptions<P extends T ? T : P>): FindCursor<P>;
-	find<P>(query: Filter<T> | undefined, options?: FindOptions<P extends T ? T : P>): FindCursor<WithId<P>> | FindCursor<WithId<T>>;
+	find<P extends Document = T>(query: Filter<T>, options: FindOptions<P extends T ? T : P>): FindCursor<P>;
+	find<P extends Document>(
+		query: Filter<T> | undefined,
+		options?: FindOptions<P extends T ? T : P>,
+	): FindCursor<WithId<P>> | FindCursor<WithId<T>>;
 
-	findPaginated<P = T>(query: Filter<T>, options?: FindOptions<P extends T ? T : P>): FindPaginated<FindCursor<WithId<P>>>;
+	findPaginated<P extends Document = T>(query: Filter<T>, options?: FindOptions<P extends T ? T : P>): FindPaginated<FindCursor<WithId<P>>>;
 	findPaginated(query: Filter<T>, options?: any): FindPaginated<FindCursor<WithId<T>>>;
 
 	update(
@@ -80,9 +90,11 @@ export interface IBaseModel<
 
 	removeById(_id: T['_id']): Promise<DeleteResult>;
 
+	removeByIds(ids: T['_id'][]): Promise<DeleteResult>;
+
 	deleteOne(filter: Filter<T>, options?: DeleteOptions & { bypassDocumentValidation?: boolean }): Promise<DeleteResult>;
 
-	deleteMany(filter: Filter<T>, options?: DeleteOptions): Promise<DeleteResult>;
+	deleteMany(filter: Filter<T>, options?: DeleteOptions & { onTrash?: (record: ResultFields<T, C>) => void }): Promise<DeleteResult>;
 
 	// Trash
 	trashFind<P extends TDeleted>(
@@ -92,7 +104,7 @@ export interface IBaseModel<
 
 	trashFindOneById(_id: TDeleted['_id']): Promise<TDeleted | null>;
 
-	trashFindOneById<P>(_id: TDeleted['_id'], options: FindOptions<P extends TDeleted ? TDeleted : P>): Promise<P | null>;
+	trashFindOneById<P extends Document>(_id: TDeleted['_id'], options: FindOptions<P extends TDeleted ? TDeleted : P>): Promise<P | null>;
 
 	trashFindOneById<P extends TDeleted>(
 		_id: TDeleted['_id'],
@@ -101,17 +113,19 @@ export interface IBaseModel<
 
 	trashFindDeletedAfter(deletedAt: Date): FindCursor<WithId<TDeleted>>;
 
-	trashFindDeletedAfter<P = TDeleted>(
+	trashFindDeletedAfter<P extends Document = TDeleted>(
 		deletedAt: Date,
 		query?: Filter<TDeleted>,
 		options?: FindOptions<P extends TDeleted ? TDeleted : P>,
 	): FindCursor<WithId<TDeleted>>;
 
-	trashFindPaginatedDeletedAfter<P = TDeleted>(
+	trashFindPaginatedDeletedAfter<P extends Document = TDeleted>(
 		deletedAt: Date,
 		query?: Filter<TDeleted>,
 		options?: FindOptions<P extends TDeleted ? TDeleted : P>,
 	): FindPaginated<FindCursor<WithId<TDeleted>>>;
 
 	watch(pipeline?: object[]): ChangeStream<T>;
+	countDocuments(query: Filter<T>): Promise<number>;
+	estimatedDocumentCount(): Promise<number>;
 }

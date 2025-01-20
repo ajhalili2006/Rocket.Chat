@@ -1,13 +1,6 @@
 import { expect } from 'chai';
 import proxyquire from 'proxyquire';
 
-import { AuthorizeRequest } from '../../../../app/meteor-accounts-saml/server/lib/generators/AuthorizeRequest';
-import { LogoutRequest } from '../../../../app/meteor-accounts-saml/server/lib/generators/LogoutRequest';
-import { LogoutResponse } from '../../../../app/meteor-accounts-saml/server/lib/generators/LogoutResponse';
-import { LogoutRequestParser } from '../../../../app/meteor-accounts-saml/server/lib/parsers/LogoutRequest';
-import { LogoutResponseParser } from '../../../../app/meteor-accounts-saml/server/lib/parsers/LogoutResponse';
-import { ResponseParser } from '../../../../app/meteor-accounts-saml/server/lib/parsers/Response';
-import { SAMLUtils } from '../../../../app/meteor-accounts-saml/server/lib/Utils';
 import {
 	serviceProviderOptions,
 	simpleMetadata,
@@ -34,6 +27,13 @@ import {
 	privateKeyCert,
 	privateKey,
 } from './data';
+import { SAMLUtils } from '../../../../app/meteor-accounts-saml/server/lib/Utils';
+import { AuthorizeRequest } from '../../../../app/meteor-accounts-saml/server/lib/generators/AuthorizeRequest';
+import { LogoutRequest } from '../../../../app/meteor-accounts-saml/server/lib/generators/LogoutRequest';
+import { LogoutResponse } from '../../../../app/meteor-accounts-saml/server/lib/generators/LogoutResponse';
+import { LogoutRequestParser } from '../../../../app/meteor-accounts-saml/server/lib/parsers/LogoutRequest';
+import { LogoutResponseParser } from '../../../../app/meteor-accounts-saml/server/lib/parsers/LogoutResponse';
+import { ResponseParser } from '../../../../app/meteor-accounts-saml/server/lib/parsers/Response';
 import { isTruthy } from '../../../../lib/isTruthy';
 
 const { ServiceProviderMetadata } = proxyquire
@@ -52,29 +52,35 @@ describe('SAML', () => {
 	describe('[AuthorizeRequest]', () => {
 		describe('AuthorizeRequest.generate', () => {
 			it('should use the custom templates to generate the request', () => {
-				const authorizeRequest = AuthorizeRequest.generate(serviceProviderOptions);
+				const credentialToken = '__credentialToken__';
+				const authorizeRequest = AuthorizeRequest.generate(serviceProviderOptions, credentialToken);
+				expect(authorizeRequest.id).to.be.equal(credentialToken);
 				expect(authorizeRequest.request).to.be.equal(
 					'<authRequest><NameID IdentifierFormat="email"/> <authnContext Comparison="Whatever">Password</authnContext> </authRequest>',
 				);
 			});
 
 			it('should include the unique ID on the request', () => {
+				const credentialToken = '__credentialToken__';
 				const customOptions = {
 					...serviceProviderOptions,
 					authRequestTemplate: '__newId__',
 				};
 
-				const authorizeRequest = AuthorizeRequest.generate(customOptions);
+				const authorizeRequest = AuthorizeRequest.generate(customOptions, credentialToken);
+				expect(authorizeRequest.id).to.be.equal(credentialToken);
 				expect(authorizeRequest.request).to.be.equal(authorizeRequest.id);
 			});
 
 			it('should include the custom options on the request', () => {
+				const credentialToken = '__credentialToken__';
 				const customOptions = {
 					...serviceProviderOptions,
 					authRequestTemplate: '__callbackUrl__ __entryPoint__ __issuer__',
 				};
 
-				const authorizeRequest = AuthorizeRequest.generate(customOptions);
+				const authorizeRequest = AuthorizeRequest.generate(customOptions, credentialToken);
+				expect(authorizeRequest.id).to.be.equal(credentialToken);
 				expect(authorizeRequest.request).to.be.equal('[callback-url] [entry-point] [issuer]');
 			});
 		});
@@ -112,7 +118,7 @@ describe('SAML', () => {
 			it('should extract the idpSession and nameID from the request', () => {
 				const parser = new LogoutRequestParser(serviceProviderOptions);
 
-				parser.validate(simpleLogoutRequest, (err, data) => {
+				void parser.validate(simpleLogoutRequest, async (err, data) => {
 					expect(err).to.be.null;
 					expect(data).to.be.an('object');
 					expect(data).to.have.property('idpSession');
@@ -126,7 +132,7 @@ describe('SAML', () => {
 
 			it('should fail to parse an invalid xml', () => {
 				const parser = new LogoutRequestParser(serviceProviderOptions);
-				parser.validate(invalidXml, (err, data) => {
+				void parser.validate(invalidXml, async (err, data) => {
 					expect(err).to.exist;
 					expect(data).to.not.exist;
 				});
@@ -134,7 +140,7 @@ describe('SAML', () => {
 
 			it('should fail to parse a xml without any LogoutRequest tag', () => {
 				const parser = new LogoutRequestParser(serviceProviderOptions);
-				parser.validate(randomXml, (err, data) => {
+				void parser.validate(randomXml, async (err, data) => {
 					expect(err).to.be.equal('No Request Found');
 					expect(data).to.not.exist;
 				});
@@ -143,7 +149,7 @@ describe('SAML', () => {
 			it('should fail to parse a request with no NameId', () => {
 				const parser = new LogoutRequestParser(serviceProviderOptions);
 
-				parser.validate(invalidLogoutRequest, (err, data) => {
+				void parser.validate(invalidLogoutRequest, async (err, data) => {
 					expect(err).to.be.an('error').that.has.property('message').equal('SAML Logout Request: No NameID node found');
 					expect(data).to.not.exist;
 				});
@@ -184,7 +190,7 @@ describe('SAML', () => {
 				const logoutResponse = simpleLogoutResponse.replace('[STATUSCODE]', 'urn:oasis:names:tc:SAML:2.0:status:Success');
 				const parser = new LogoutResponseParser(serviceProviderOptions);
 
-				parser.validate(logoutResponse, (err, inResponseTo) => {
+				void parser.validate(logoutResponse, async (err, inResponseTo) => {
 					expect(err).to.be.null;
 					expect(inResponseTo).to.be.equal('_id-6530db3fcd23dc42a31c');
 				});
@@ -194,7 +200,7 @@ describe('SAML', () => {
 				const logoutResponse = simpleLogoutResponse.replace('[STATUSCODE]', 'Anything');
 				const parser = new LogoutResponseParser(serviceProviderOptions);
 
-				parser.validate(logoutResponse, (err, inResponseTo) => {
+				void parser.validate(logoutResponse, async (err, inResponseTo) => {
 					expect(err).to.be.equal('Error. Logout not confirmed by IDP');
 					expect(inResponseTo).to.be.null;
 				});
@@ -202,7 +208,7 @@ describe('SAML', () => {
 
 			it('should fail to parse an invalid xml', () => {
 				const parser = new LogoutResponseParser(serviceProviderOptions);
-				parser.validate(invalidXml, (err, inResponseTo) => {
+				void parser.validate(invalidXml, async (err, inResponseTo) => {
 					expect(err).to.exist;
 					expect(inResponseTo).to.not.exist;
 				});
@@ -210,7 +216,7 @@ describe('SAML', () => {
 
 			it('should fail to parse a xml without any LogoutResponse tag', () => {
 				const parser = new LogoutResponseParser(serviceProviderOptions);
-				parser.validate(randomXml, (err, inResponseTo) => {
+				void parser.validate(randomXml, async (err, inResponseTo) => {
 					expect(err).to.be.equal('No Response Found');
 					expect(inResponseTo).to.not.exist;
 				});
@@ -224,7 +230,7 @@ describe('SAML', () => {
 					.replace('InResponseTo=', 'SomethingElse=');
 
 				const parser = new LogoutResponseParser(serviceProviderOptions);
-				parser.validate(logoutResponse, (err, inResponseTo) => {
+				void parser.validate(logoutResponse, async (err, inResponseTo) => {
 					expect(err).to.be.equal('Unexpected Response from IDP');
 					expect(inResponseTo).to.not.exist;
 				});
@@ -233,7 +239,7 @@ describe('SAML', () => {
 			it('should reject a response with no status tag', () => {
 				const parser = new LogoutResponseParser(serviceProviderOptions);
 
-				parser.validate(invalidLogoutResponse, (err, inResponseTo) => {
+				void parser.validate(invalidLogoutResponse, async (err, inResponseTo) => {
 					expect(err).to.be.equal('Error. Logout not confirmed by IDP');
 					expect(inResponseTo).to.be.null;
 				});
@@ -342,7 +348,7 @@ describe('SAML', () => {
 			it('should reject a xml with multiple responses', () => {
 				const parser = new ResponseParser(serviceProviderOptions);
 				parser.validate(duplicatedSamlResponse, (err, data, loggedOut) => {
-					expect(err).to.be.an('error').that.has.property('message').that.is.equal('Too many SAML responses');
+					expect(err).to.be.an('error');
 					expect(data).to.not.exist;
 					expect(loggedOut).to.be.false;
 				});
@@ -962,6 +968,15 @@ describe('SAML', () => {
 				const map = new Map();
 				map.set('epa', 'group1');
 			});
+		});
+	});
+
+	describe('[Utils]', () => {
+		it('should return correct validation action redirect path', () => {
+			const credentialToken = SAMLUtils.generateUniqueID();
+			expect(SAMLUtils.getValidationActionRedirectPath(credentialToken)).to.be.equal(
+				`saml/${credentialToken}?saml_idp_credentialToken=${credentialToken}`,
+			);
 		});
 	});
 });

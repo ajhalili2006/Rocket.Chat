@@ -1,10 +1,9 @@
 import { UserStatus } from '@rocket.chat/core-typings';
 import { action } from '@storybook/addon-actions';
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
 
-import VerticalBar from '../../../../components/VerticalBar';
 import RoomMembers from './RoomMembers';
+import { Contextualbar } from '../../../../components/Contextualbar';
 
 export default {
 	title: 'Room/Contextual Bar/RoomMembers',
@@ -13,10 +12,10 @@ export default {
 		layout: 'fullscreen',
 		actions: { argTypesRegex: '^on.*' },
 	},
-	decorators: [(fn) => <VerticalBar height='100vh'>{fn()}</VerticalBar>],
-} as ComponentMeta<typeof RoomMembers>;
+	decorators: [(fn) => <Contextualbar height='100vh'>{fn()}</Contextualbar>],
+} satisfies Meta<typeof RoomMembers>;
 
-const Template: ComponentStory<typeof RoomMembers> = (args) => <RoomMembers {...args} />;
+const Template: StoryFn<typeof RoomMembers> = (args) => <RoomMembers {...args} />;
 
 export const Default = Template.bind({});
 Default.args = {
@@ -27,7 +26,6 @@ Default.args = {
 			username: 'rocket.cat',
 			status: UserStatus.ONLINE,
 			name: 'Rocket.Cat',
-			_updatedAt: new Date(),
 		},
 	],
 	text: 'filter',

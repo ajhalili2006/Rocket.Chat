@@ -1,29 +1,29 @@
-import type { IconProps } from '@rocket.chat/fuselage';
 import { Sidebar, IconButton } from '@rocket.chat/fuselage';
-import { useMutableCallback, usePrefersReducedMotion } from '@rocket.chat/fuselage-hooks';
-import type { VFC } from 'react';
-import React, { memo, useState } from 'react';
+import { usePrefersReducedMotion } from '@rocket.chat/fuselage-hooks';
+import type { Keys as IconName } from '@rocket.chat/icons';
+import type { ReactNode } from 'react';
+import { memo, useState } from 'react';
 
 import { useShortTimeAgo } from '../../hooks/useTimeAgo';
 
 type ExtendedProps = {
-	icon?: IconProps['name'];
-	title?: React.ReactNode;
-	avatar?: React.ReactNode | boolean;
-	actions?: React.ReactNode;
+	icon?: IconName;
+	title?: ReactNode;
+	avatar?: ReactNode;
+	actions?: ReactNode;
 	href?: string;
 	time?: any;
-	menu?: () => React.ReactNode;
-	subtitle?: React.ReactNode;
-	badges?: React.ReactNode;
+	menu?: () => ReactNode;
+	subtitle?: ReactNode;
+	badges?: ReactNode;
 	unread?: boolean;
 	selected?: boolean;
 	menuOptions?: any;
-	titleIcon?: React.ReactNode;
+	titleIcon?: ReactNode;
 	threadUnread?: boolean;
 };
 
-const Extended: VFC<ExtendedProps> = ({
+const Extended = ({
 	icon,
 	title = '',
 	avatar,
@@ -39,22 +39,17 @@ const Extended: VFC<ExtendedProps> = ({
 	unread,
 	selected,
 	...props
-}) => {
+}: ExtendedProps) => {
 	const formatDate = useShortTimeAgo();
 	const [menuVisibility, setMenuVisibility] = useState(!!window.DISABLE_ANIMATION);
-
 	const isReduceMotionEnabled = usePrefersReducedMotion();
 
-	const handleMenu = useMutableCallback((e) => {
-		setMenuVisibility(e.target.offsetWidth > 0 && Boolean(menu));
-	});
-
 	const handleMenuEvent = {
-		[isReduceMotionEnabled ? 'onMouseEnter' : 'onTransitionEnd']: handleMenu,
+		[isReduceMotionEnabled ? 'onMouseEnter' : 'onTransitionEnd']: setMenuVisibility,
 	};
 
 	return (
-		<Sidebar.Item aria-selected={selected} selected={selected} highlighted={unread} {...props} {...({ href } as any)} clickable={!!href}>
+		<Sidebar.Item selected={selected} highlighted={unread} {...props} {...({ href } as any)} clickable={!!href}>
 			{avatar && <Sidebar.Item.Avatar>{avatar}</Sidebar.Item.Avatar>}
 			<Sidebar.Item.Content>
 				<Sidebar.Item.Content>
@@ -72,13 +67,17 @@ const Extended: VFC<ExtendedProps> = ({
 						<Sidebar.Item.Badge>{badges}</Sidebar.Item.Badge>
 						{menu && (
 							<Sidebar.Item.Menu {...handleMenuEvent}>
-								{menuVisibility ? menu() : <IconButton mini rcx-sidebar-item__menu icon='kebab' />}
+								{menuVisibility ? menu() : <IconButton tabIndex={-1} aria-hidden mini rcx-sidebar-item__menu icon='kebab' />}
 							</Sidebar.Item.Menu>
 						)}
 					</Sidebar.Item.Wrapper>
 				</Sidebar.Item.Content>
 			</Sidebar.Item.Content>
-			{actions && <Sidebar.Item.Container>{<Sidebar.Item.Actions>{actions}</Sidebar.Item.Actions>}</Sidebar.Item.Container>}
+			{actions && (
+				<Sidebar.Item.Container>
+					<Sidebar.Item.Actions>{actions}</Sidebar.Item.Actions>
+				</Sidebar.Item.Container>
+			)}
 		</Sidebar.Item>
 	);
 };

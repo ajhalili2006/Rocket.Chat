@@ -1,32 +1,40 @@
-import { PaletteStyleTag } from '@rocket.chat/ui-theming/src/PaletteStyleTag';
-import { SidebarPaletteStyleTag } from '@rocket.chat/ui-theming/src/SidebarPaletteStyleTag';
-import type { FC } from 'react';
-import React, { Fragment, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useSyncExternalStore } from 'use-sync-external-store/shim';
 
-import { appLayout } from '../../lib/appLayout';
-import { blazePortals } from '../../lib/portals/blazePortals';
-import { useExperimentalTheme } from '../hooks/useExperimentalTheme';
+import DocumentTitleWrapper from './DocumentTitleWrapper';
 import PageLoading from './PageLoading';
-import { useTooltipHandling } from './useTooltipHandling';
+import { useEscapeKeyStroke } from './hooks/useEscapeKeyStroke';
+import { useGoogleTagManager } from './hooks/useGoogleTagManager';
+import { useMessageLinkClicks } from './hooks/useMessageLinkClicks';
+import { useAnalytics } from '../../../app/analytics/client/loadScript';
+import { useAnalyticsEventTracking } from '../../hooks/useAnalyticsEventTracking';
+import { useLoadRoomForAllowedAnonymousRead } from '../../hooks/useLoadRoomForAllowedAnonymousRead';
+import { useNotifyUser } from '../../hooks/useNotifyUser';
+import { appLayout } from '../../lib/appLayout';
 
-const AppLayout: FC = () => {
-	useTooltipHandling();
+const AppLayout = () => {
+	useEffect(() => {
+		document.body.classList.add('color-primary-font-color', 'rcx-content--main');
 
-	const theme = useExperimentalTheme();
+		return () => {
+			document.body.classList.remove('color-primary-font-color', 'rcx-content--main');
+		};
+	}, []);
+
+	useMessageLinkClicks();
+	useGoogleTagManager();
+	useAnalytics();
+	useEscapeKeyStroke();
+	useAnalyticsEventTracking();
+	useLoadRoomForAllowedAnonymousRead();
+	useNotifyUser();
 
 	const layout = useSyncExternalStore(appLayout.subscribe, appLayout.getSnapshot);
-	const portals = useSyncExternalStore(blazePortals.subscribe, blazePortals.getSnapshot);
 
 	return (
-		<>
-			{theme && <PaletteStyleTag />}
-			<SidebarPaletteStyleTag />
-			<Suspense fallback={<PageLoading />}>{layout}</Suspense>
-			{portals.map(({ key, node }) => (
-				<Fragment key={key} children={node} />
-			))}
-		</>
+		<Suspense fallback={<PageLoading />}>
+			<DocumentTitleWrapper>{layout}</DocumentTitleWrapper>
+		</Suspense>
 	);
 };
 

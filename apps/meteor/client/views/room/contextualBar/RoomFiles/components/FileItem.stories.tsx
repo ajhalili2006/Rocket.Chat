@@ -1,8 +1,7 @@
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
 
-import VerticalBar from '../../../../../components/VerticalBar';
 import FileItem from './FileItem';
+import { Contextualbar } from '../../../../../components/Contextualbar';
 
 export default {
 	title: 'Room/Contextual Bar/RoomFiles/FileItem',
@@ -10,18 +9,20 @@ export default {
 	parameters: {
 		layout: 'fullscreen',
 	},
-	decorators: [(fn) => <VerticalBar height='100vh'>{fn()}</VerticalBar>],
-} as ComponentMeta<typeof FileItem>;
+	decorators: [(fn) => <Contextualbar height='100vh'>{fn()}</Contextualbar>],
+} satisfies Meta<typeof FileItem>;
 
-export const Default: ComponentStory<typeof FileItem> = (args) => <FileItem {...args} />;
+export const Default: StoryFn<typeof FileItem> = (args) => <FileItem {...args} />;
 Default.storyName = 'FileItem';
 Default.args = {
 	fileData: {
+		_id: '1',
 		name: 'Lorem Ipsum Indolor Dolor',
 		url: '#',
-		uploadedAt: 'May 02, 2020 01:00 PM',
+		uploadedAt: new Date(),
 		user: {
-			username: 'loremIpsum',
+			_id: 'rocket.cat',
+			username: 'rocket.cat',
 		},
 	},
 };

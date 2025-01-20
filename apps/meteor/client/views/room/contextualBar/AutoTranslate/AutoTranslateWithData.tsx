@@ -1,42 +1,62 @@
-import type { IRoom } from '@rocket.chat/core-typings';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
-import { useUserSubscription, useLanguage } from '@rocket.chat/ui-contexts';
-import type { ReactElement } from 'react';
-import React, { useMemo, useEffect, useState, memo } from 'react';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+import { useLanguage } from '@rocket.chat/ui-contexts';
+import type { ChangeEvent, ReactElement } from 'react';
+import { useMemo, useEffect, useState, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { useEndpointActionExperimental } from '../../../../hooks/useEndpointActionExperimental';
-import { useEndpointData } from '../../../../hooks/useEndpointData';
-import { useTabBarClose } from '../../contexts/ToolboxContext';
 import AutoTranslate from './AutoTranslate';
+import { useEndpointAction } from '../../../../hooks/useEndpointAction';
+import { useEndpointData } from '../../../../hooks/useEndpointData';
+import { dispatchToastMessage } from '../../../../lib/toast';
+import { useRoom, useRoomSubscription } from '../../contexts/RoomContext';
+import { useRoomToolbox } from '../../contexts/RoomToolboxContext';
 
-const AutoTranslateWithData = ({ rid }: { rid: IRoom['_id'] }): ReactElement => {
-	const handleClose = useTabBarClose();
+const AutoTranslateWithData = (): ReactElement => {
+	const room = useRoom();
+	const subscription = useRoomSubscription();
+	const { closeTab } = useRoomToolbox();
 	const userLanguage = useLanguage();
-	const subscription = useUserSubscription(rid);
 	const [currentLanguage, setCurrentLanguage] = useState(subscription?.autoTranslateLanguage ?? '');
-	const saveSettings = useEndpointActionExperimental('POST', '/v1/autotranslate.saveSettings');
+	const saveSettings = useEndpointAction('POST', '/v1/autotranslate.saveSettings');
+	const { t } = useTranslation();
 
-	const { value: translateData } = useEndpointData(
-		'/v1/autotranslate.getSupportedLanguages',
-		useMemo(() => ({ targetLanguage: userLanguage }), [userLanguage]),
-	);
+	const { value: translateData } = useEndpointData('/v1/autotranslate.getSupportedLanguages', {
+		params: useMemo(() => ({ targetLanguage: userLanguage }), [userLanguage]),
+	});
+	const languagesDict = translateData ? Object.fromEntries(translateData.languages.map((lang) => [lang.language, lang.name])) : {};
 
-	const handleChangeLanguage = useMutableCallback((value) => {
+	const handleChangeLanguage = useEffectEvent((value: string) => {
 		setCurrentLanguage(value);
 
 		saveSettings({
-			roomId: rid,
+			roomId: room._id,
 			field: 'autoTranslateLanguage',
 			value,
 		});
+		dispatchToastMessage({
+			type: 'success',
+			message: t('AutoTranslate_language_set_to', { language: languagesDict[value] }),
+		});
 	});
 
-	const handleSwitch = useMutableCallback((event) => {
+	const handleSwitch = useEffectEvent((event: ChangeEvent<HTMLInputElement>) => {
 		saveSettings({
-			roomId: rid,
+			roomId: room._id,
 			field: 'autoTranslate',
 			value: event.target.checked,
 		});
+		dispatchToastMessage({
+			type: 'success',
+			message: event.target.checked
+				? t('AutoTranslate_Enabled_for_room', { roomName: room.name })
+				: t('AutoTranslate_Disabled_for_room', { roomName: room.name }),
+		});
+		if (event.target.checked && currentLanguage) {
+			dispatchToastMessage({
+				type: 'success',
+				message: t('AutoTranslate_language_set_to', { language: languagesDict[currentLanguage] }),
+			});
+		}
 	});
 
 	useEffect(() => {
@@ -56,7 +76,7 @@ const AutoTranslateWithData = ({ rid }: { rid: IRoom['_id'] }): ReactElement => 
 			handleSwitch={handleSwitch}
 			handleChangeLanguage={handleChangeLanguage}
 			translateEnable={!!subscription?.autoTranslate}
-			handleClose={handleClose}
+			handleClose={closeTab}
 		/>
 	);
 };

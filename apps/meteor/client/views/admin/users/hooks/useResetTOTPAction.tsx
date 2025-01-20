@@ -1,17 +1,17 @@
 import type { IUser } from '@rocket.chat/core-typings';
-import { useSetModal, useSetting, usePermission, useEndpoint, useTranslation, useToastMessageDispatch } from '@rocket.chat/ui-contexts';
-import React, { useCallback } from 'react';
+import { useSetModal, usePermission, useSetting, useEndpoint, useTranslation, useToastMessageDispatch } from '@rocket.chat/ui-contexts';
+import { useCallback } from 'react';
 
+import type { AdminUserAction } from './useAdminUserInfoActions';
 import GenericModal from '../../../../components/GenericModal';
-import type { Action } from '../../../hooks/useActionSpread';
 
-export const useResetTOTPAction = (userId: IUser['_id']): Action | undefined => {
+export const useResetTOTPAction = (userId: IUser['_id']): AdminUserAction | undefined => {
 	const t = useTranslation();
 	const setModal = useSetModal();
 	const dispatchToastMessage = useToastMessageDispatch();
 	const canResetTOTP = usePermission('edit-other-user-totp');
+	const twoFactorEnabled = useSetting('Accounts_TwoFactorAuthentication_Enabled');
 	const resetTOTPRequest = useEndpoint('POST', '/v1/users.resetTOTP');
-	const enforcePassword = useSetting('Accounts_TwoFactorAuthentication_Enforce_Password_Fallback');
 
 	const resetTOTP = useCallback(async () => {
 		try {
@@ -32,11 +32,11 @@ export const useResetTOTPAction = (userId: IUser['_id']): Action | undefined => 
 		);
 	}, [resetTOTP, t, setModal]);
 
-	return canResetTOTP && enforcePassword
+	return canResetTOTP && twoFactorEnabled
 		? {
 				icon: 'key',
-				label: t('Reset_TOTP'),
-				action: confirmResetTOTP,
-		  }
+				content: t('Reset_TOTP'),
+				onClick: confirmResetTOTP,
+			}
 		: undefined;
 };

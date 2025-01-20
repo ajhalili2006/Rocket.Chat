@@ -1,32 +1,14 @@
-import moment from 'moment';
 import type { ILivechatBusinessHour } from '@rocket.chat/core-typings';
-import { LivechatBusinessHourTypes } from '@rocket.chat/core-typings';
+import { ILivechatAgentStatus, LivechatBusinessHourTypes } from '@rocket.chat/core-typings';
 import { LivechatBusinessHours, Users } from '@rocket.chat/models';
+import moment from 'moment';
 
-import { createDefaultBusinessHourRow } from '../../../models/server/models/LivechatBusinessHours';
+import { createDefaultBusinessHourRow } from './LivechatBusinessHours';
+import { filterBusinessHoursThatMustBeOpened } from './filterBusinessHoursThatMustBeOpened';
+import { notifyOnUserChangeAsync } from '../../../lib/server/lib/notifyListener';
+import { businessHourLogger } from '../lib/logger';
 
-export const filterBusinessHoursThatMustBeOpened = async (
-	businessHours: ILivechatBusinessHour[],
-): Promise<Pick<ILivechatBusinessHour, '_id' | 'type'>[]> => {
-	const currentTime = moment(moment().format('dddd:HH:mm'), 'dddd:HH:mm');
-
-	return businessHours
-		.filter(
-			(businessHour) =>
-				businessHour.active &&
-				businessHour.workHours
-					.filter((hour) => hour.open)
-					.some((hour) => {
-						const localTimeStart = moment(`${hour.start.cron.dayOfWeek}:${hour.start.cron.time}`, 'dddd:HH:mm');
-						const localTimeFinish = moment(`${hour.finish.cron.dayOfWeek}:${hour.finish.cron.time}`, 'dddd:HH:mm');
-						return currentTime.isSameOrAfter(localTimeStart) && currentTime.isSameOrBefore(localTimeFinish);
-					}),
-		)
-		.map((businessHour) => ({
-			_id: businessHour._id,
-			type: businessHour.type,
-		}));
-};
+export { filterBusinessHoursThatMustBeOpened };
 
 export const filterBusinessHoursThatMustBeOpenedByDay = async (
 	businessHours: ILivechatBusinessHour[],
@@ -44,20 +26,77 @@ export const openBusinessHourDefault = async (): Promise<void> => {
 	const currentTime = moment(moment().format('dddd:HH:mm'), 'dddd:HH:mm');
 	const day = currentTime.format('dddd');
 	const activeBusinessHours = await LivechatBusinessHours.findDefaultActiveAndOpenBusinessHoursByDay(day, {
-		fields: {
+		projection: {
 			workHours: 1,
 			timezone: 1,
 			type: 1,
 			active: 1,
 		},
 	});
+
 	const businessHoursToOpenIds = (await filterBusinessHoursThatMustBeOpened(activeBusinessHours)).map((businessHour) => businessHour._id);
+	businessHourLogger.debug({ msg: 'Opening default business hours', businessHoursToOpenIds });
 	await Users.openAgentsBusinessHoursByBusinessHourId(businessHoursToOpenIds);
-	await Users.updateLivechatStatusBasedOnBusinessHours();
+	if (businessHoursToOpenIds.length) {
+		await makeOnlineAgentsAvailable();
+	}
+	await makeAgentsUnavailableBasedOnBusinessHour();
 };
 
 export const createDefaultBusinessHourIfNotExists = async (): Promise<void> => {
-	if ((await LivechatBusinessHours.find({ type: LivechatBusinessHourTypes.DEFAULT }).count()) === 0) {
+	if ((await LivechatBusinessHours.col.countDocuments({ type: LivechatBusinessHourTypes.DEFAULT })) === 0) {
 		await LivechatBusinessHours.insertOne(createDefaultBusinessHourRow());
 	}
 };
+
+export async function makeAgentsUnavailableBasedOnBusinessHour(agentIds: string[] | null = null) {
+	const results = await Users.findAgentsAvailableWithoutBusinessHours(agentIds).toArray();
+
+	const update = await Users.updateLivechatStatusByAgentIds(
+		results.map(({ _id }) => _id),
+		ILivechatAgentStatus.NOT_AVAILABLE,
+	);
+
+	if (update.modifiedCount === 0) {
+		return;
+	}
+
+	void notifyOnUserChangeAsync(async () =>
+		results.map(({ _id, openBusinessHours }) => {
+			return {
+				id: _id,
+				clientAction: 'updated',
+				diff: {
+					statusLivechat: 'not-available',
+					openBusinessHours,
+				},
+			};
+		}),
+	);
+}
+
+export async function makeOnlineAgentsAvailable(agentIds: string[] | null = null) {
+	const results = await Users.findOnlineButNotAvailableAgents(agentIds).toArray();
+
+	const update = await Users.updateLivechatStatusByAgentIds(
+		results.map(({ _id }) => _id),
+		ILivechatAgentStatus.AVAILABLE,
+	);
+
+	if (update.modifiedCount === 0) {
+		return;
+	}
+
+	void notifyOnUserChangeAsync(async () =>
+		results.map(({ _id, openBusinessHours }) => {
+			return {
+				id: _id,
+				clientAction: 'updated',
+				diff: {
+					statusLivechat: 'available',
+					openBusinessHours,
+				},
+			};
+		}),
+	);
+}

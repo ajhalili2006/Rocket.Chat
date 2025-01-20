@@ -1,17 +1,30 @@
-import { EJSON } from 'meteor/ejson';
+import { FederationRoomEvents } from '@rocket.chat/models';
+import EJSON from 'ejson';
 
 import { API } from '../../../api/server';
-import { serverLogger } from '../lib/logger';
-import { FederationRoomEvents } from '../../../models/server';
+import { apiDeprecationLogger } from '../../../lib/server/lib/deprecationWarningLogger';
+import { dispatchEvents } from '../handler';
 import { decryptIfNeeded } from '../lib/crypt';
 import { isFederationEnabled } from '../lib/isFederationEnabled';
-import { dispatchEvents } from '../handler';
+import { serverLogger } from '../lib/logger';
 
 API.v1.addRoute(
 	'federation.events.requestFromLatest',
 	{ authRequired: false },
 	{
-		post() {
+		async post() {
+			/*
+			The legacy federation has been deprecated for over a year
+			and no longer receives any updates. This feature also has
+			relevant security issues that weren't addressed.
+			Workspaces should migrate to the newer matrix federation.
+			*/
+			apiDeprecationLogger.endpoint(this.request.route, '8.0.0', this.response, 'Use Matrix Federation instead.');
+
+			if (!process.env.ENABLE_INSECURE_LEGACY_FEDERATION) {
+				return API.v1.failure('Deprecated. ENABLE_INSECURE_LEGACY_FEDERATION environment variable is needed to enable it.');
+			}
+
 			if (!isFederationEnabled()) {
 				return API.v1.failure('Federation not enabled');
 			}
@@ -21,7 +34,7 @@ API.v1.addRoute(
 			let payload;
 
 			try {
-				payload = Promise.await(decryptIfNeeded(this.request, this.bodyParams));
+				payload = await decryptIfNeeded(this.request, this.bodyParams);
 			} catch (err) {
 				return API.v1.failure('Could not decrypt payload');
 			}
@@ -48,28 +61,28 @@ API.v1.addRoute(
 
 			if (latestEventIds.length) {
 				// Get the oldest event from the latestEventIds
-				const oldestEvent = EventsModel.findOne({ _id: { $in: latestEventIds } }, { $sort: { timestamp: 1 } });
+				const oldestEvent = await EventsModel.findOne({ _id: { $in: latestEventIds } }, { $sort: { timestamp: 1 } });
 
 				if (!oldestEvent) {
 					return;
 				}
 
 				// Get all the missing events on this context, after the oldest one
-				missingEvents = EventsModel.find(
+				missingEvents = await EventsModel.find(
 					{
 						_id: { $nin: latestEventIds },
 						context: contextQuery,
 						timestamp: { $gte: oldestEvent.timestamp },
 					},
 					{ sort: { timestamp: 1 } },
-				).fetch();
+				).toArray();
 			} else {
 				// If there are no latest events, send all of them
-				missingEvents = EventsModel.find({ context: contextQuery }, { sort: { timestamp: 1 } }).fetch();
+				missingEvents = await EventsModel.find({ context: contextQuery }, { sort: { timestamp: 1 } }).toArray();
 			}
 
 			// Dispatch all the events, on the same request
-			Promise.await(dispatchEvents([fromDomain], missingEvents));
+			await dispatchEvents([fromDomain], missingEvents);
 
 			return API.v1.success();
 		},

@@ -1,17 +1,13 @@
 import type { IRoom } from '@rocket.chat/core-typings';
 import { Emitter } from '@rocket.chat/emitter';
-import { useUserId, useUserRoom, useUserSubscription } from '@rocket.chat/ui-contexts';
-import { useCallback, useEffect } from 'react';
 import { useSyncExternalStore } from 'use-sync-external-store/shim';
 
-import { RoomHistoryManager } from '../../app/ui-utils/client/lib/RoomHistoryManager';
-import { useAsyncState } from '../hooks/useAsyncState';
-import type { AsyncState } from './asyncState';
 import { getConfig } from './utils/getConfig';
+import { RoomHistoryManager } from '../../app/ui-utils/client/lib/RoomHistoryManager';
 
 const debug = !!(getConfig('debug') || getConfig('debug-RoomStore'));
 
-export class RoomStore extends Emitter<{
+class RoomStore extends Emitter<{
 	changed: undefined;
 }> {
 	lastTime?: Date;
@@ -59,6 +55,8 @@ export const RoomManager = new (class RoomManager extends Emitter<{
 
 	private rooms: Map<IRoom['_id'], RoomStore> = new Map();
 
+	private parentRid?: IRoom['_id'] | undefined;
+
 	constructor() {
 		super();
 		debugRoomManager &&
@@ -82,6 +80,13 @@ export const RoomManager = new (class RoomManager extends Emitter<{
 	}
 
 	get opened(): IRoom['_id'] | undefined {
+		return this.parentRid ?? this.rid;
+	}
+
+	get openedSecondLevel(): IRoom['_id'] | undefined {
+		if (!this.parentRid) {
+			return undefined;
+		}
 		return this.rid;
 	}
 
@@ -103,25 +108,33 @@ export const RoomManager = new (class RoomManager extends Emitter<{
 	}
 
 	close(rid: IRoom['_id']): void {
-		if (!this.rooms.has(rid)) {
+		if (this.rooms.has(rid)) {
 			this.rooms.delete(rid);
 			this.emit('closed', rid);
 		}
 		this.emit('changed', this.rid);
 	}
 
-	open(rid: IRoom['_id']): void {
+	private _open(rid: IRoom['_id'], parent?: IRoom['_id']): void {
 		if (rid === this.rid) {
 			return;
 		}
-
 		this.back(rid);
 		if (!this.rooms.has(rid)) {
 			this.rooms.set(rid, new RoomStore(rid));
 		}
 		this.rid = rid;
+		this.parentRid = parent;
 		this.emit('opened', this.rid);
 		this.emit('changed', this.rid);
+	}
+
+	open(rid: IRoom['_id']): void {
+		this._open(rid);
+	}
+
+	openSecondLevel(parentId: IRoom['_id'], rid: IRoom['_id']): void {
+		this._open(rid, parentId);
 	}
 
 	getStore(rid: IRoom['_id']): RoomStore | undefined {
@@ -129,51 +142,16 @@ export const RoomManager = new (class RoomManager extends Emitter<{
 	}
 })();
 
-const subscribeVisitedRooms = [
-	(callback: () => void): (() => void) => RoomManager.on('changed', callback),
-	(): IRoom['_id'][] => RoomManager.visitedRooms(),
-] as const;
-
 const subscribeOpenedRoom = [
-	(callback: () => void): (() => void) => RoomManager.on('opened', callback),
+	(callback: () => void): (() => void) => RoomManager.on('changed', callback),
 	(): IRoom['_id'] | undefined => RoomManager.opened,
 ] as const;
 
-const fields = {};
-
-export const useHandleRoom = <T extends IRoom>(rid: IRoom['_id']): AsyncState<T> => {
-	const { resolve, update, ...state } = useAsyncState<T>();
-	const uid = useUserId();
-	const subscription = useUserSubscription(rid, fields) as unknown as T;
-	const _room = useUserRoom(rid, fields) as unknown as T;
-
-	const room = uid ? subscription || _room : _room;
-
-	useEffect(() => {
-		if (!room) {
-			return;
-		}
-
-		update();
-		resolve(room);
-	}, [resolve, update, room]);
-
-	return state;
-};
-
-export const useVisitedRooms = (): IRoom['_id'][] => useSyncExternalStore(...subscribeVisitedRooms);
+const subscribeOpenedSecondLevelRoom = [
+	(callback: () => void): (() => void) => RoomManager.on('changed', callback),
+	(): IRoom['_id'] | undefined => RoomManager.openedSecondLevel,
+] as const;
 
 export const useOpenedRoom = (): IRoom['_id'] | undefined => useSyncExternalStore(...subscribeOpenedRoom);
 
-export const useRoomStore = (rid: IRoom['_id']): RoomStore => {
-	const subscribe = useCallback((callback: () => void): (() => void) => RoomManager.on('changed', callback), []);
-	const getSnapshot = (): RoomStore | undefined => RoomManager.getStore(rid);
-
-	const store = useSyncExternalStore(subscribe, getSnapshot);
-
-	if (!store) {
-		throw new Error('Something wrong');
-	}
-
-	return store;
-};
+export const useSecondLevelOpenedRoom = (): IRoom['_id'] | undefined => useSyncExternalStore(...subscribeOpenedSecondLevelRoom);

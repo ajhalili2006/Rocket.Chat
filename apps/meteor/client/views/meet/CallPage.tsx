@@ -1,39 +1,41 @@
 import { Box, Flex, ButtonGroup, Button, Icon } from '@rocket.chat/fuselage';
-import { useTranslation } from '@rocket.chat/ui-contexts';
+import { UserAvatar } from '@rocket.chat/ui-avatar';
+import { useTranslation, useStream } from '@rocket.chat/ui-contexts';
 import moment from 'moment';
-import type { FC } from 'react';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { Notifications } from '../../../app/notifications/client';
-import { WebRTC } from '../../../app/webrtc/client';
-import { WEB_RTC_EVENTS } from '../../../app/webrtc/index';
-import UserAvatar from '../../components/avatar/UserAvatar';
 import OngoingCallDuration from './OngoingCallDuration';
+import { sdk } from '../../../app/utils/client/lib/SDKClient';
+import { WebRTC } from '../../../app/webrtc/client';
+import { WEB_RTC_EVENTS } from '../../../app/webrtc/lib/constants';
 import './styles.css';
 
 type CallPageProps = {
-	roomId: any;
+	roomId?: string;
 	visitorToken: any;
-	visitorId: any;
+	visitorId: string | null;
 	status: any;
 	setStatus: any;
-	layout: any;
+	isLayoutEmbedded: boolean;
 	visitorName: any;
 	agentName: any;
 	callStartTime: any;
 };
 
-const CallPage: FC<CallPageProps> = ({
+const CallPage = ({
 	roomId,
 	visitorToken,
 	visitorId,
 	status,
 	setStatus,
-	layout,
+	isLayoutEmbedded,
 	visitorName,
 	agentName,
 	callStartTime,
-}) => {
+}: CallPageProps) => {
+	if (!roomId) {
+		throw new Error('Call Page - no room id');
+	}
 	const [isAgentActive, setIsAgentActive] = useState(false);
 	const [isMicOn, setIsMicOn] = useState(false);
 	const [isCameraOn, setIsCameraOn] = useState(false);
@@ -45,63 +47,102 @@ const CallPage: FC<CallPageProps> = ({
 	let iconSize = 'x21';
 	let buttonSize = 'x40';
 	const avatarSize = 'x48';
-	if (layout === 'embedded') {
+	if (isLayoutEmbedded) {
 		iconSize = 'x19';
 		buttonSize = 'x35';
 	}
 
+	const subscribeNotifyUser = useStream('notify-user');
+	const subscribeNotifyRoom = useStream('notify-room');
 	const t = useTranslation();
 	useEffect(() => {
 		if (visitorToken) {
+			if (!visitorId) {
+				throw new Error('Call Page - no visitor id');
+			}
 			const webrtcInstance = WebRTC.getInstanceByRoomId(roomId, visitorId);
 			const isMobileDevice = (): boolean => {
-				if (layout === 'embedded') {
+				if (isLayoutEmbedded) {
 					setCallInIframe(true);
 				}
 				if (window.innerWidth <= 450 && window.innerHeight >= 629 && window.innerHeight <= 900) {
 					setIsLocalMobileDevice(true);
-					webrtcInstance.media = {
-						audio: true,
-						video: {
-							width: { ideal: 440 },
-							height: { ideal: 580 },
-						},
-					};
+					if (webrtcInstance)
+						webrtcInstance.media = {
+							audio: true,
+							video: {
+								width: { ideal: 440 },
+								height: { ideal: 580 },
+							},
+						};
 					return true;
 				}
 				return false;
 			};
-			Notifications.onUser(
-				WEB_RTC_EVENTS.WEB_RTC,
-				(type: any, data: any) => {
-					if (data.room == null) {
-						return;
-					}
-					webrtcInstance.onUserStream(type, data);
-				},
-				visitorId,
-			);
-			Notifications.onRoom(roomId, 'webrtc', (type: any, data: any) => {
+
+			const unsubNotifyUser = subscribeNotifyUser(`${visitorId}/${WEB_RTC_EVENTS.WEB_RTC}`, (type, data) => {
+				if (data.room == null) {
+					return;
+				}
+
+				switch (type) {
+					case 'candidate':
+						webrtcInstance?.onUserStream('candidate', data);
+						break;
+					case 'description':
+						webrtcInstance?.onUserStream('description', data);
+						break;
+					case 'join':
+						webrtcInstance?.onUserStream('join', data);
+						break;
+				}
+			});
+
+			const unsubNotifyRoom = subscribeNotifyRoom(`${roomId}/${WEB_RTC_EVENTS.WEB_RTC}`, (type: any, data: any) => {
 				if (type === 'callStatus' && data.callStatus === 'ended') {
-					webrtcInstance.stop();
+					webrtcInstance?.stop();
 					setStatus(data.callStatus);
 				} else if (type === 'getDeviceType') {
-					Notifications.notifyRoom(roomId, 'webrtc', 'deviceType', {
-						isMobileDevice: isMobileDevice(),
-					});
+					sdk.publish('notify-room', [
+						`${roomId}/${WEB_RTC_EVENTS.WEB_RTC}`,
+						'deviceType',
+						{
+							isMobileDevice: isMobileDevice(),
+						},
+					]);
 				} else if (type === 'cameraStatus') {
 					setIsRemoteCameraOn(data.isCameraOn);
 				}
 			});
-			Notifications.notifyRoom(roomId, 'webrtc', 'deviceType', {
-				isMobileDevice: isMobileDevice(),
-			});
-			Notifications.notifyRoom(roomId, 'webrtc', 'callStatus', { callStatus: 'inProgress' });
-		} else if (!isAgentActive) {
+
+			sdk.publish('notify-room', [
+				`${roomId}/${WEB_RTC_EVENTS.WEB_RTC}`,
+				'deviceType',
+				{
+					isMobileDevice: isMobileDevice(),
+				},
+			]);
+
+			sdk.publish('notify-room', [
+				`${roomId}/${WEB_RTC_EVENTS.WEB_RTC}`,
+				'callStatus',
+				{
+					callStatus: 'inProgress',
+				},
+			]);
+
+			return () => {
+				unsubNotifyRoom();
+				unsubNotifyUser();
+			};
+		}
+
+		if (!isAgentActive) {
 			const webrtcInstance = WebRTC.getInstanceByRoomId(roomId);
 			if (status === 'inProgress') {
-				Notifications.notifyRoom(roomId, 'webrtc', 'getDeviceType');
-				webrtcInstance.startCall({
+				sdk.publish('notify-room', [`${roomId}/${WEB_RTC_EVENTS.WEB_RTC}`, 'getDeviceType']);
+
+				webrtcInstance?.startCall({
 					audio: true,
 					video: {
 						width: { ideal: 1920 },
@@ -109,14 +150,17 @@ const CallPage: FC<CallPageProps> = ({
 					},
 				});
 			}
-			Notifications.onRoom(roomId, 'webrtc', (type: any, data: any) => {
+
+			setIsAgentActive(true);
+
+			return subscribeNotifyRoom(`${roomId}/${WEB_RTC_EVENTS.WEB_RTC}`, (type: any, data: any) => {
 				if (type === 'callStatus') {
 					switch (data.callStatus) {
 						case 'ended':
-							webrtcInstance.stop();
+							webrtcInstance?.stop();
 							break;
 						case 'inProgress':
-							webrtcInstance.startCall({
+							webrtcInstance?.startCall({
 								audio: true,
 								video: {
 									width: { ideal: 1920 },
@@ -131,22 +175,27 @@ const CallPage: FC<CallPageProps> = ({
 					setIsRemoteCameraOn(data.isCameraOn);
 				}
 			});
-			setIsAgentActive(true);
 		}
-	}, [isAgentActive, status, setStatus, visitorId, roomId, visitorToken, layout]);
+	}, [isAgentActive, status, setStatus, visitorId, roomId, visitorToken, isLayoutEmbedded, subscribeNotifyUser, subscribeNotifyRoom]);
 
 	const toggleButton = (control: any): any => {
 		if (control === 'mic') {
-			WebRTC.getInstanceByRoomId(roomId, visitorToken).toggleAudio();
+			WebRTC.getInstanceByRoomId(roomId, visitorToken)?.toggleAudio();
 			return setIsMicOn(!isMicOn);
 		}
-		WebRTC.getInstanceByRoomId(roomId, visitorToken).toggleVideo();
+		WebRTC.getInstanceByRoomId(roomId, visitorToken)?.toggleVideo();
 		setIsCameraOn(!isCameraOn);
-		Notifications.notifyRoom(roomId, 'webrtc', 'cameraStatus', { isCameraOn: !isCameraOn });
+		sdk.publish('notify-room', [
+			`${roomId}/${WEB_RTC_EVENTS.WEB_RTC}`,
+			'cameraStatus',
+			{
+				isCameraOn: !isCameraOn,
+			},
+		]);
 	};
 
 	const closeWindow = (): void => {
-		if (layout === 'embedded') {
+		if (isLayoutEmbedded) {
 			return (parent as any)?.handleIframeClose();
 		}
 		return window.close();
@@ -156,7 +205,7 @@ const CallPage: FC<CallPageProps> = ({
 
 	const showCallPage = (localAvatar: any, remoteAvatar: any): any => (
 		<Flex.Container direction='column' justifyContent='center'>
-			<Box width='full' minHeight='sh' alignItems='center' backgroundColor='neutral-900' overflow='hidden' position='relative'>
+			<Box width='full' minHeight='sh' alignItems='center' backgroundColor='dark' overflow='hidden' position='relative'>
 				<Box
 					position='absolute'
 					zIndex={1}
@@ -164,9 +213,9 @@ const CallPage: FC<CallPageProps> = ({
 						top: '5%',
 						right: '2%',
 					}}
-					className='Self_Video'
+					className='meet__video--self'
 					alignItems='center'
-					backgroundColor='#2F343D'
+					backgroundColor='dark'
 				>
 					<video
 						id='localVideo'
@@ -179,59 +228,60 @@ const CallPage: FC<CallPageProps> = ({
 							display: isCameraOn ? 'block' : 'none',
 						}}
 					></video>
-					<UserAvatar
+					<Box
 						style={{
 							display: isCameraOn ? 'none' : 'block',
 							margin: 'auto',
 						}}
-						username={localAvatar}
-						className='rcx-message__avatar'
-						size={isLocalMobileDevice || callInIframe ? 'x32' : 'x48'}
-					/>
+					>
+						<UserAvatar username={localAvatar} size={isLocalMobileDevice || callInIframe ? 'x32' : 'x48'} />
+					</Box>
 				</Box>
-				<ButtonGroup
+				<Box
 					position='absolute'
 					zIndex={1}
 					style={{
 						bottom: '5%',
 					}}
 				>
-					<Button
-						id='mic'
-						square
-						data-title={isMicOn ? t('Mute_microphone') : t('Unmute_microphone')}
-						onClick={(): any => toggleButton('mic')}
-						className={isMicOn ? 'On' : 'Off'}
-						size={Number(buttonSize)}
-					>
-						{isMicOn ? <Icon name='mic' size={iconSize} /> : <Icon name='mic-off' size={iconSize} />}
-					</Button>
-					<Button
-						id='camera'
-						square
-						data-title={isCameraOn ? t('Turn_off_video') : t('Turn_on_video')}
-						onClick={(): void => toggleButton('camera')}
-						className={isCameraOn ? 'On' : 'Off'}
-						size={parseInt(buttonSize)}
-					>
-						{isCameraOn ? <Icon name='video' size={iconSize} /> : <Icon name='video-off' size={iconSize} />}
-					</Button>
-					{layout === 'embedded' && (
+					<ButtonGroup>
 						<Button
+							id='mic'
 							square
-							backgroundColor='#2F343D'
-							borderColor='#2F343D'
-							data-title={t('Expand_view')}
-							onClick={(): void => (parent as any)?.expandCall()}
+							title={isMicOn ? t('Mute_microphone') : t('Unmute_microphone')}
+							onClick={(): any => toggleButton('mic')}
+							className={isMicOn ? 'meet__button--on' : 'meet__button--off'}
+							size={Number(buttonSize)}
+						>
+							{isMicOn ? <Icon name='mic' size={iconSize} /> : <Icon name='mic-off' size={iconSize} />}
+						</Button>
+						<Button
+							id='camera'
+							square
+							title={isCameraOn ? t('Turn_off_video') : t('Turn_on_video')}
+							onClick={(): void => toggleButton('camera')}
+							className={isCameraOn ? 'meet__button--on' : 'meet__button--off'}
 							size={parseInt(buttonSize)}
 						>
-							<Icon name='arrow-expand' size={iconSize} color='white' />
+							{isCameraOn ? <Icon name='video' size={iconSize} /> : <Icon name='video-off' size={iconSize} />}
 						</Button>
-					)}
-					<Button square danger data-title={t('End_call')} onClick={closeWindow} size={parseInt(buttonSize)}>
-						<Icon name='phone-off' size={iconSize} color='white' />
-					</Button>
-				</ButtonGroup>
+						{isLayoutEmbedded && (
+							<Button
+								square
+								backgroundColor='dark'
+								borderColor='stroke-extra-dark'
+								data-title={t('Expand_view')}
+								onClick={(): void => (parent as any)?.expandCall()}
+								size={parseInt(buttonSize)}
+							>
+								<Icon name='arrow-expand' size={iconSize} color='white' />
+							</Button>
+						)}
+						<Button square danger title={t('End_call')} onClick={closeWindow} size={parseInt(buttonSize)}>
+							<Icon name='phone-off' size={iconSize} color='white' />
+						</Button>
+					</ButtonGroup>
+				</Box>
 				<video
 					id='remoteVideo'
 					autoPlay
@@ -241,7 +291,9 @@ const CallPage: FC<CallPageProps> = ({
 						transform: 'scaleX(-1)',
 						display: isRemoteCameraOn ? 'block' : 'none',
 					}}
-				></video>
+				>
+					<track kind='captions' />
+				</video>
 				<Box
 					position='absolute'
 					zIndex={1}
@@ -253,15 +305,15 @@ const CallPage: FC<CallPageProps> = ({
 						top: isRemoteMobileDevice || isLocalMobileDevice ? '10%' : '30%',
 					}}
 				>
-					<UserAvatar
+					<Box
 						style={{
 							display: 'block',
 							margin: 'auto',
 						}}
-						username={remoteAvatar}
-						className='rcx-message__avatar'
-						size={!callInIframe ? 'x124' : avatarSize}
-					/>
+					>
+						<UserAvatar username={remoteAvatar} size={!callInIframe ? 'x124' : avatarSize} />
+					</Box>
+
 					<Box color='white' fontSize={callInIframe ? 12 : 18} textAlign='center' margin={3}>
 						<OngoingCallDuration counter={getCallDuration(callStartTime)} />
 					</Box>
@@ -284,7 +336,7 @@ const CallPage: FC<CallPageProps> = ({
 		<>
 			{status === 'ringing' && (
 				<Flex.Container direction='column' justifyContent='center'>
-					<Box width='full' minHeight='sh' alignItems='center' backgroundColor='neutral-900' overflow='hidden' position='relative'>
+					<Box width='full' minHeight='sh' alignItems='center' backgroundColor='dark' overflow='hidden' position='relative'>
 						<Box
 							position='absolute'
 							zIndex={1}
@@ -292,19 +344,18 @@ const CallPage: FC<CallPageProps> = ({
 								top: '5%',
 								right: '2%',
 							}}
-							className='Self_Video'
-							backgroundColor='#2F343D'
+							className='meet__video--self'
+							backgroundColor='dark'
 							alignItems='center'
 						>
-							<UserAvatar
+							<Box
 								style={{
 									display: 'block',
 									margin: 'auto',
 								}}
-								username={agentName}
-								className='rcx-message__avatar'
-								size={isLocalMobileDevice ? 'x32' : 'x48'}
-							/>
+							>
+								<UserAvatar username={agentName} size={isLocalMobileDevice ? 'x32' : 'x48'} />
+							</Box>
 						</Box>
 						<Box
 							position='absolute'
@@ -317,17 +368,16 @@ const CallPage: FC<CallPageProps> = ({
 							}}
 							alignItems='center'
 						>
-							<UserAvatar
+							<Box
 								style={{
 									display: 'block',
 									margin: 'auto',
 								}}
-								username={visitorName}
-								className='rcx-message__avatar'
-								size='x124'
-							/>
+							>
+								<UserAvatar username={visitorName} size='x124' />
+							</Box>
 							<Box color='white' fontSize={16} margin={15}>
-								{'Calling...'}
+								Calling...
 							</Box>
 							<Box
 								style={{

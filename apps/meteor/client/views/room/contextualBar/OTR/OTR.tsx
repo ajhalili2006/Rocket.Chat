@@ -1,13 +1,19 @@
 import type { IUser } from '@rocket.chat/core-typings';
-import { Box, Button, Throbber } from '@rocket.chat/fuselage';
-import { useTranslation } from '@rocket.chat/ui-contexts';
+import { Box, Button, Callout, Throbber } from '@rocket.chat/fuselage';
 import type { MouseEventHandler, ReactElement } from 'react';
-import React from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { OtrRoomState } from '../../../../../app/otr/lib/OtrRoomState';
-import VerticalBar from '../../../../components/VerticalBar';
 import OTREstablished from './components/OTREstablished';
 import OTRStates from './components/OTRStates';
+import { OtrRoomState } from '../../../../../app/otr/lib/OtrRoomState';
+import {
+	ContextualbarHeader,
+	ContextualbarIcon,
+	ContextualbarTitle,
+	ContextualbarClose,
+	ContextualbarScrollableContent,
+} from '../../../../components/Contextualbar';
+import { useRoom } from '../../contexts/RoomContext';
 
 type OTRProps = {
 	isOnline: boolean;
@@ -20,7 +26,8 @@ type OTRProps = {
 };
 
 const OTR = ({ isOnline, onClickClose, onClickStart, onClickEnd, onClickRefresh, otrState, peerUsername }: OTRProps): ReactElement => {
-	const t = useTranslation();
+	const { t } = useTranslation();
+	const room = useRoom();
 
 	const renderOTRState = (): ReactElement => {
 		switch (otrState) {
@@ -34,7 +41,7 @@ const OTR = ({ isOnline, onClickClose, onClickStart, onClickEnd, onClickRefresh,
 				return (
 					<Box>
 						<Box fontScale='p2'>{t('Please_wait_while_OTR_is_being_established')}</Box>
-						<Box mb='x16'>
+						<Box mb={16}>
 							<Throbber />
 						</Box>
 					</Box>
@@ -45,7 +52,7 @@ const OTR = ({ isOnline, onClickClose, onClickStart, onClickEnd, onClickRefresh,
 				return (
 					<OTRStates
 						title={t('OTR_Chat_Declined_Title')}
-						description={t('OTR_Chat_Declined_Description', peerUsername || '')}
+						description={t('OTR_Chat_Declined_Description', { postProcess: 'sprintf', sprintf: [peerUsername || ''] })}
 						icon='cross'
 						onClickStart={onClickStart}
 					/>
@@ -54,7 +61,7 @@ const OTR = ({ isOnline, onClickClose, onClickStart, onClickEnd, onClickRefresh,
 				return (
 					<OTRStates
 						title={t('OTR_Chat_Timeout_Title')}
-						description={t('OTR_Chat_Timeout_Description', peerUsername || '')}
+						description={t('OTR_Chat_Timeout_Description', { postProcess: 'sprintf', sprintf: [peerUsername || ''] })}
 						icon='clock'
 						onClickStart={onClickStart}
 					/>
@@ -71,18 +78,33 @@ const OTR = ({ isOnline, onClickClose, onClickStart, onClickEnd, onClickRefresh,
 		}
 	};
 
+	const renderOTRBody = (): ReactElement => {
+		if (room.encrypted) {
+			return (
+				<Callout title={t('OTR_not_available')} type='warning'>
+					{t('OTR_not_available_e2ee')}
+				</Callout>
+			);
+		}
+
+		if (!isOnline) {
+			return <Box fontScale='p2m'>{t('OTR_is_only_available_when_both_users_are_online')}</Box>;
+		}
+
+		return renderOTRState();
+	};
+
 	return (
 		<>
-			<VerticalBar.Header>
-				<VerticalBar.Icon name='stopwatch' />
-				<VerticalBar.Text>{t('OTR')}</VerticalBar.Text>
-				{onClickClose && <VerticalBar.Close onClick={onClickClose} />}
-			</VerticalBar.Header>
-
-			<VerticalBar.ScrollableContent p='x24'>
+			<ContextualbarHeader>
+				<ContextualbarIcon name='stopwatch' />
+				<ContextualbarTitle>{t('OTR')}</ContextualbarTitle>
+				{onClickClose && <ContextualbarClose onClick={onClickClose} />}
+			</ContextualbarHeader>
+			<ContextualbarScrollableContent p={24} color='default'>
 				<Box fontScale='h4'>{t('Off_the_record_conversation')}</Box>
-				{isOnline ? renderOTRState() : <Box fontScale='p2m'>{t('OTR_is_only_available_when_both_users_are_online')}</Box>}
-			</VerticalBar.ScrollableContent>
+				{renderOTRBody()}
+			</ContextualbarScrollableContent>
 		</>
 	);
 };

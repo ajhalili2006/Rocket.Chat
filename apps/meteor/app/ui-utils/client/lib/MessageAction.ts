@@ -1,38 +1,8 @@
-import type { ComponentProps, ContextType } from 'react';
-import _ from 'underscore';
-import mem from 'mem';
-import { Meteor } from 'meteor/meteor';
-import { ReactiveVar } from 'meteor/reactive-var';
-import { Tracker } from 'meteor/tracker';
-import type { Icon } from '@rocket.chat/fuselage';
-import type { IMessage, IUser, ISubscription, IRoom, SettingValue, Serialized } from '@rocket.chat/core-typings';
+import type { Keys as IconName } from '@rocket.chat/icons';
 import type { TranslationKey } from '@rocket.chat/ui-contexts';
 
-import { Messages, Rooms, Subscriptions } from '../../../models/client';
-import { roomCoordinator } from '../../../../client/lib/rooms/roomCoordinator';
-import type { ToolboxContextValue } from '../../../../client/views/room/contexts/ToolboxContext';
-import type { ChatContext } from '../../../../client/views/room/contexts/ChatContext';
-import { APIClient } from '../../../utils/client';
+type MessageActionGroup = 'menu';
 
-const getMessage = async (msgId: string): Promise<Serialized<IMessage> | null> => {
-	try {
-		const { message } = await APIClient.get('/v1/chat.getMessage', { msgId });
-		return message;
-	} catch {
-		return null;
-	}
-};
-
-export const addMessageToList = (messagesList: IMessage[], message: IMessage): IMessage[] => {
-	// checks if the message is not already on the list
-	if (!messagesList.find(({ _id }) => _id === message._id)) {
-		messagesList.push(message);
-	}
-
-	return messagesList;
-};
-
-type MessageActionGroup = 'message' | 'menu';
 export type MessageActionContext =
 	| 'message'
 	| 'threads'
@@ -42,154 +12,23 @@ export type MessageActionContext =
 	| 'starred'
 	| 'mentions'
 	| 'federated'
-	| 'videoconf';
+	| 'videoconf'
+	| 'search'
+	| 'videoconf-threads';
 
-type MessageActionConditionProps = {
-	message: IMessage;
-	user: IUser | undefined;
-	room: IRoom;
-	subscription?: ISubscription;
-	context?: MessageActionContext;
-	settings: { [key: string]: SettingValue };
-};
+type MessageActionType = 'communication' | 'interaction' | 'duplication' | 'apps' | 'management';
 
 export type MessageActionConfig = {
 	id: string;
-	icon: ComponentProps<typeof Icon>['name'];
+	icon: IconName;
 	variant?: 'danger' | 'success' | 'warning';
 	label: TranslationKey;
-	order?: number;
-	/* @deprecated */
-	color?: string;
-	group?: MessageActionGroup | MessageActionGroup[];
+	order: number;
+	/** @deprecated */
+	color?: 'alert';
+	group: MessageActionGroup;
 	context?: MessageActionContext[];
-	action: (
-		e: Pick<Event, 'preventDefault' | 'stopPropagation'>,
-		{
-			message,
-			tabbar,
-			room,
-			chat,
-		}: { message?: IMessage; tabbar: ToolboxContextValue; room?: IRoom; chat: ContextType<typeof ChatContext> },
-	) => any;
-	condition?: (props: MessageActionConditionProps) => boolean;
+	action: (e: Pick<Event, 'preventDefault' | 'stopPropagation' | 'currentTarget'> | undefined) => any;
+	type?: MessageActionType;
+	disabled?: boolean;
 };
-
-type MessageActionConfigList = MessageActionConfig[];
-
-export const MessageAction = new (class {
-	/*
-  	config expects the following keys (only id is mandatory):
-  		id (mandatory)
-  		icon: string
-  		label: string
-  		action: function(event, instance)
-  		condition: function(message)
-			order: integer
-			group: string (message or menu)
-   */
-
-	buttons = new ReactiveVar<Record<string, MessageActionConfig>>({});
-
-	addButton(config: MessageActionConfig): void {
-		if (!config || !config.id) {
-			return;
-		}
-
-		if (!config.group) {
-			config.group = 'menu';
-		}
-
-		if (config.condition) {
-			config.condition = mem(config.condition, { maxAge: 1000, cacheKey: JSON.stringify });
-		}
-
-		return Tracker.nonreactive(() => {
-			const btns = this.buttons.get();
-			btns[config.id] = config;
-			mem.clear(this._getButtons);
-			mem.clear(this.getButtonsByGroup);
-			return this.buttons.set(btns);
-		});
-	}
-
-	removeButton(id: MessageActionConfig['id']): void {
-		return Tracker.nonreactive(() => {
-			const btns = this.buttons.get();
-			delete btns[id];
-			return this.buttons.set(btns);
-		});
-	}
-
-	updateButton(id: MessageActionConfig['id'], config: MessageActionConfig): void {
-		return Tracker.nonreactive(() => {
-			const btns = this.buttons.get();
-			if (btns[id]) {
-				btns[id] = _.extend(btns[id], config);
-				return this.buttons.set(btns);
-			}
-		});
-	}
-
-	getButtonById(id: MessageActionConfig['id']): MessageActionConfig | undefined {
-		const allButtons = this.buttons.get();
-		return allButtons[id];
-	}
-
-	_getButtons = mem((): MessageActionConfigList => _.sortBy(_.toArray(this.buttons.get()), 'order'), { maxAge: 1000 });
-
-	getButtonsByCondition(
-		prop: MessageActionConditionProps,
-		arr: MessageActionConfigList = MessageAction._getButtons(),
-	): MessageActionConfigList {
-		return arr.filter((button) => !button.condition || button.condition(prop));
-	}
-
-	getButtonsByGroup = mem(
-		function (group: MessageActionGroup, arr: MessageActionConfigList = MessageAction._getButtons()): MessageActionConfigList {
-			return arr.filter((button) => !button.group || (Array.isArray(button.group) ? button.group.includes(group) : button.group === group));
-		},
-		{ maxAge: 1000 },
-	);
-
-	getButtonsByContext(context: MessageActionContext, arr: MessageActionConfigList): MessageActionConfigList {
-		return !context ? arr : arr.filter((button) => !button.context || button.context.includes(context));
-	}
-
-	getButtons(props: MessageActionConditionProps, context: MessageActionContext, group: MessageActionGroup): MessageActionConfigList {
-		const allButtons = group ? this.getButtonsByGroup(group) : MessageAction._getButtons();
-
-		if (props.message) {
-			return this.getButtonsByCondition({ ...props, context }, this.getButtonsByContext(context, allButtons));
-		}
-		return allButtons;
-	}
-
-	resetButtons(): void {
-		mem.clear(this._getButtons);
-		mem.clear(this.getButtonsByGroup);
-		return this.buttons.set({});
-	}
-
-	async getPermaLink(msgId: string): Promise<string> {
-		if (!msgId) {
-			throw new Error('invalid-parameter');
-		}
-
-		const msg = Messages.findOne(msgId) || (await getMessage(msgId));
-		if (!msg) {
-			throw new Error('message-not-found');
-		}
-		const roomData = Rooms.findOne({
-			_id: msg.rid,
-		});
-
-		if (!roomData) {
-			throw new Error('room-not-found');
-		}
-
-		const subData = Subscriptions.findOne({ 'rid': roomData._id, 'u._id': Meteor.userId() });
-		const roomURL = roomCoordinator.getURL(roomData.t, subData || roomData);
-		return `${roomURL}?msg=${msgId}`;
-	}
-})();

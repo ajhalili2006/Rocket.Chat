@@ -35,7 +35,19 @@ module.exports = {
 			},
 			plugins: ['@typescript-eslint', 'anti-trojan-source'],
 			rules: {
-				'@typescript-eslint/ban-types': 'warn',
+				'@typescript-eslint/ban-types': [
+					'warn',
+					{
+						types: {
+							'FC': 'Useless and has some drawbacks, see https://adr.rocket.chat/0094',
+							'React.FC': 'Useless and has some drawbacks, see https://adr.rocket.chat/0094',
+							'VFC': 'Useless and has some drawbacks, see https://adr.rocket.chat/0094',
+							'React.VFC': 'Useless and has some drawbacks, see https://adr.rocket.chat/0094',
+							'FunctionComponent': 'Useless and has some drawbacks, see https://adr.rocket.chat/0094',
+							'React.FunctionComponent': 'Useless and has some drawbacks, see https://adr.rocket.chat/0094',
+						},
+					},
+				],
 				'@typescript-eslint/ban-ts-comment': 'warn',
 				'@typescript-eslint/consistent-type-imports': 'error',
 				'@typescript-eslint/naming-convention': [
@@ -83,6 +95,7 @@ module.exports = {
 				'jsx-quotes': ['error', 'prefer-single'],
 				'no-dupe-class-members': 'off',
 				'no-empty-function': 'off',
+				'no-extra-parens': 'off',
 				'no-redeclare': 'off',
 				'no-spaced-func': 'off',
 				'no-undef': 'off',

@@ -14,10 +14,10 @@ import {
   isPreviewBlockWithPreview,
 } from '@rocket.chat/ui-kit';
 import type { ReactElement } from 'react';
-import React, { memo } from 'react';
+import { memo } from 'react';
 
-import type { BlockProps } from '../utils/BlockProps';
 import ContextBlock from './ContextBlock';
+import type { BlockProps } from '../utils/BlockProps';
 
 type PreviewBlockProps = BlockProps<UiKit.PreviewBlock>;
 
@@ -57,8 +57,8 @@ const PreviewBlock = ({
               surfaceRenderer.renderTextObject(
                 title,
                 0,
-                UiKit.BlockContext.NONE
-              )
+                UiKit.BlockContext.NONE,
+              ),
             )}
           </MessageGenericPreviewTitle>
         ) : null}
@@ -68,8 +68,8 @@ const PreviewBlock = ({
               surfaceRenderer.renderTextObject(
                 description,
                 0,
-                UiKit.BlockContext.NONE
-              )
+                UiKit.BlockContext.NONE,
+              ),
             )}
           </MessageGenericPreviewDescription>
         ) : null}

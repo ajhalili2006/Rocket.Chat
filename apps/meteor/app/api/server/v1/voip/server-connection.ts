@@ -1,7 +1,7 @@
+import { VoipAsterisk } from '@rocket.chat/core-services';
 import { Match, check } from 'meteor/check';
 
 import { API } from '../../api';
-import { Voip } from '../../../../../server/sdk';
 
 API.v1.addRoute(
 	'voip/managementServer/checkConnection',
@@ -9,7 +9,7 @@ API.v1.addRoute(
 	{
 		async get() {
 			check(
-				this.requestParams(),
+				this.queryParams,
 				Match.ObjectIncluding({
 					host: String,
 					port: String,
@@ -17,8 +17,8 @@ API.v1.addRoute(
 					password: String,
 				}),
 			);
-			const { host, port, username, password } = this.requestParams();
-			return API.v1.success(await Voip.checkManagementConnection(host, port, username, password));
+			const { host, port, username, password } = this.queryParams;
+			return API.v1.success(await VoipAsterisk.checkManagementConnection(host, port, username, password));
 		},
 	},
 );
@@ -29,7 +29,7 @@ API.v1.addRoute(
 	{
 		async get() {
 			check(
-				this.requestParams(),
+				this.queryParams,
 				Match.ObjectIncluding({
 					websocketUrl: Match.Maybe(String),
 					host: Match.Maybe(String),
@@ -37,7 +37,7 @@ API.v1.addRoute(
 					path: Match.Maybe(String),
 				}),
 			);
-			const { websocketUrl, host, port, path } = this.requestParams();
+			const { websocketUrl, host, port, path } = this.queryParams;
 			if (!websocketUrl && !(host && port && path)) {
 				return API.v1.failure('Incorrect / Insufficient Parameters');
 			}
@@ -53,7 +53,7 @@ API.v1.addRoute(
 				}
 			}
 
-			return API.v1.success(await Voip.checkCallserverConnection(socketUrl));
+			return API.v1.success(await VoipAsterisk.checkCallserverConnection(socketUrl));
 		},
 	},
 );

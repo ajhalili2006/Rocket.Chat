@@ -2,7 +2,7 @@ import type { TranslationKey } from '@rocket.chat/ui-contexts';
 import { TranslationContext } from '@rocket.chat/ui-contexts';
 import i18next from 'i18next';
 import type { ContextType, ReactElement, ReactNode } from 'react';
-import React, { useContext, useMemo } from 'react';
+import { useContext, useMemo } from 'react';
 
 type TranslationContextMockProps = {
 	children: ReactNode;
@@ -51,6 +51,7 @@ const TranslationContextMock = ({ children }: TranslationContextMockProps): Reac
 				{
 					name: 'English',
 					en: 'English',
+					ogName: 'English',
 					key: 'en',
 				},
 			],

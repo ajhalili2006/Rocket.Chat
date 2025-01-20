@@ -1,35 +1,36 @@
-import { Meteor } from 'meteor/meteor';
-import Queue from 'queue-fifo';
-import moment from 'moment';
-import _ from 'underscore';
+import { Logger } from '@rocket.chat/logger';
 import { Settings } from '@rocket.chat/models';
+import moment from 'moment';
+import Queue from 'queue-fifo';
 
-import * as peerCommandHandlers from './peerHandlers';
-import * as localCommandHandlers from './localHandlers';
 import { callbacks } from '../../../../lib/callbacks';
+import { afterLeaveRoomCallback } from '../../../../lib/callbacks/afterLeaveRoomCallback';
+import { afterLogoutCleanUpCallback } from '../../../../lib/callbacks/afterLogoutCleanUpCallback';
+import { withThrottling } from '../../../../lib/utils/highOrderFunctions';
+import { updateAuditedBySystem } from '../../../../server/settings/lib/auditedSettingUpdates';
+import { notifyOnSettingChangedById } from '../../../lib/server/lib/notifyListener';
 import * as servers from '../servers';
-import { Logger } from '../../../logger/server';
+import * as localCommandHandlers from './localHandlers';
+import * as peerCommandHandlers from './peerHandlers';
 
 const logger = new Logger('IRC Bridge');
 const queueLogger = logger.section('Queue');
 
 let removed = false;
-const updateLastPing = _.throttle(
-	Meteor.bindEnvironment(() => {
-		if (removed) {
-			return;
+const updateLastPing = withThrottling({ wait: 10_000 })(() => {
+	if (removed) {
+		return;
+	}
+
+	void (async () => {
+		const updatedValue = await updateAuditedBySystem({
+			reason: 'updateLastPing',
+		})(Settings.updateValueById, 'IRC_Bridge_Last_Ping', new Date(), { upsert: true });
+		if (updatedValue.modifiedCount || updatedValue.upsertedCount) {
+			void notifyOnSettingChangedById('IRC_Bridge_Last_Ping');
 		}
-		Settings.upsert(
-			{ _id: 'IRC_Bridge_Last_Ping' },
-			{
-				$set: {
-					value: new Date(),
-				},
-			},
-		);
-	}),
-	1000 * 10,
-);
+	})();
+});
 
 class Bridge {
 	constructor(config) {
@@ -52,12 +53,12 @@ class Bridge {
 		this.queueTimeout = 5;
 	}
 
-	init() {
+	async init() {
 		this.initTime = new Date();
 		removed = false;
 		this.loggedInUsers = [];
 
-		const lastPing = Promise.await(Settings.findOneById('IRC_Bridge_Last_Ping'));
+		const lastPing = await Settings.findOneById('IRC_Bridge_Last_Ping');
 		if (lastPing) {
 			if (Math.abs(moment(lastPing.value).diff()) < 1000 * 30) {
 				this.log('Not trying to connect.');
@@ -207,16 +208,16 @@ class Bridge {
 		);
 		callbacks.add('afterJoinRoom', this.onMessageReceived.bind(this, 'local', 'onJoinRoom'), callbacks.priority.LOW, 'irc-on-join-room');
 		// Leaving rooms or channels
-		callbacks.add('afterLeaveRoom', this.onMessageReceived.bind(this, 'local', 'onLeaveRoom'), callbacks.priority.LOW, 'irc-on-leave-room');
+		afterLeaveRoomCallback.add(this.onMessageReceived.bind(this, 'local', 'onLeaveRoom'), callbacks.priority.LOW, 'irc-on-leave-room');
 		// Chatting
 		callbacks.add(
 			'afterSaveMessage',
-			this.onMessageReceived.bind(this, 'local', 'onSaveMessage'),
+			(message, { room }) => this.onMessageReceived('local', 'onSaveMessage', message, room),
 			callbacks.priority.LOW,
 			'irc-on-save-message',
 		);
 		// Leaving
-		callbacks.add('afterLogoutCleanUp', this.onMessageReceived.bind(this, 'local', 'onLogout'), callbacks.priority.LOW, 'irc-on-logout');
+		afterLogoutCleanUpCallback.add(this.onMessageReceived.bind(this, 'local', 'onLogout'), callbacks.priority.LOW, 'irc-on-logout');
 	}
 
 	removeLocalHandlers() {
@@ -225,9 +226,9 @@ class Bridge {
 		callbacks.remove('afterCreateChannel', 'irc-on-create-channel');
 		callbacks.remove('afterCreateRoom', 'irc-on-create-room');
 		callbacks.remove('afterJoinRoom', 'irc-on-join-room');
-		callbacks.remove('afterLeaveRoom', 'irc-on-leave-room');
+		afterLeaveRoomCallback.remove('irc-on-leave-room');
 		callbacks.remove('afterSaveMessage', 'irc-on-save-message');
-		callbacks.remove('afterLogoutCleanUp', 'irc-on-logout');
+		afterLogoutCleanUpCallback.remove('irc-on-logout');
 	}
 
 	sendCommand(command, parameters) {

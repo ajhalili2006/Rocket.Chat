@@ -1,6 +1,9 @@
 import type * as MessageParser from '@rocket.chat/message-parser';
 import { Fragment, ReactElement } from 'react';
 
+import BoldSpan from './BoldSpan';
+import ItalicSpan from './ItalicSpan';
+import StrikeSpan from './StrikeSpan';
 import PreviewCodeElement from '../code/PreviewCodeElement';
 import PreviewColorElement from '../colors/PreviewColorElement';
 import PreviewEmojiElement from '../emoji/PreviewEmojiElement';
@@ -8,9 +11,6 @@ import KatexErrorBoundary from '../katex/KatexErrorBoundary';
 import PreviewKatexElement from '../katex/PreviewKatexElement';
 import PreviewChannelMentionElement from '../mentions/PreviewChannelMentionElement';
 import PreviewUserMentionElement from '../mentions/PreviewUserMentionElement';
-import BoldSpan from './BoldSpan';
-import ItalicSpan from './ItalicSpan';
-import StrikeSpan from './StrikeSpan';
 
 type PreviewInlineElementsProps = {
 	children: MessageParser.Inlines[];
@@ -30,7 +30,9 @@ const PreviewInlineElements = ({ children }: PreviewInlineElementsProps): ReactE
 					return <ItalicSpan key={index} children={child.value} />;
 
 				case 'LINK':
-					return <PreviewInlineElements key={index} children={[child.value.label]} />;
+					return (
+						<PreviewInlineElements key={index} children={Array.isArray(child.value.label) ? child.value.label : [child.value.label]} />
+					);
 
 				case 'PLAIN_TEXT':
 					return <Fragment key={index} children={child.value} />;

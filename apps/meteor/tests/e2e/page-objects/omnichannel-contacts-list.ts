@@ -17,7 +17,7 @@ export class OmnichannelContacts {
 	}
 
 	get btnNewContact(): Locator {
-		return this.page.locator('button >> text="New Contact"');
+		return this.page.locator('button >> text="New contact"');
 	}
 
 	get inputSearch(): Locator {
@@ -26,9 +26,5 @@ export class OmnichannelContacts {
 
 	findRowByName(contactName: string) {
 		return this.page.locator(`td >> text="${contactName}"`);
-	}
-
-	get toastSuccess(): Locator {
-		return this.page.locator('.rcx-toastbar.rcx-toastbar--success');
 	}
 }

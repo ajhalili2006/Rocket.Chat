@@ -1,20 +1,26 @@
-import type { IGroupVideoConference } from '@rocket.chat/core-typings';
-import { Box, States, StatesIcon, StatesTitle, StatesSubtitle } from '@rocket.chat/fuselage';
+import type { VideoConference } from '@rocket.chat/core-typings';
+import { Box, States, StatesIcon, StatesTitle, StatesSubtitle, Throbber } from '@rocket.chat/fuselage';
 import { useResizeObserver } from '@rocket.chat/fuselage-hooks';
-import { useTranslation } from '@rocket.chat/ui-contexts';
 import type { ReactElement } from 'react';
-import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Virtuoso } from 'react-virtuoso';
 
-import ScrollableContentWrapper from '../../../../../components/ScrollableContentWrapper';
-import VerticalBar from '../../../../../components/VerticalBar';
-import { getErrorMessage } from '../../../../../lib/errorHandling';
 import VideoConfListItem from './VideoConfListItem';
+import {
+	ContextualbarHeader,
+	ContextualbarIcon,
+	ContextualbarTitle,
+	ContextualbarClose,
+	ContextualbarContent,
+	ContextualbarEmptyContent,
+} from '../../../../../components/Contextualbar';
+import { VirtuosoScrollbars } from '../../../../../components/CustomScrollbars';
+import { getErrorMessage } from '../../../../../lib/errorHandling';
 
 type VideoConfListProps = {
 	onClose: () => void;
 	total: number;
-	videoConfs: IGroupVideoConference[];
+	videoConfs: VideoConference[];
 	loading: boolean;
 	error?: Error;
 	reload: () => void;
@@ -22,25 +28,26 @@ type VideoConfListProps = {
 };
 
 const VideoConfList = ({ onClose, total, videoConfs, loading, error, reload, loadMoreItems }: VideoConfListProps): ReactElement => {
-	const t = useTranslation();
+	const { t } = useTranslation();
 
 	const { ref, contentBoxSize: { inlineSize = 378, blockSize = 1 } = {} } = useResizeObserver<HTMLElement>({
 		debounceDelay: 200,
 	});
 
-	if (loading) {
-		return <VerticalBar.Skeleton />;
-	}
-
 	return (
 		<>
-			<VerticalBar.Header>
-				<VerticalBar.Icon name='phone' />
-				<VerticalBar.Text>{t('Calls')}</VerticalBar.Text>
-				<VerticalBar.Close onClick={onClose} />
-			</VerticalBar.Header>
+			<ContextualbarHeader>
+				<ContextualbarIcon name='phone' />
+				<ContextualbarTitle>{t('Calls')}</ContextualbarTitle>
+				<ContextualbarClose onClick={onClose} />
+			</ContextualbarHeader>
 
-			<VerticalBar.Content paddingInline={0} ref={ref}>
+			<ContextualbarContent paddingInline={0} ref={ref}>
+				{loading && (
+					<Box pi={24} pb={12}>
+						<Throbber size='x12' />
+					</Box>
+				)}
 				{(total === 0 || error) && (
 					<Box display='flex' flexDirection='column' justifyContent='center' height='100%'>
 						{error && (
@@ -50,32 +57,38 @@ const VideoConfList = ({ onClose, total, videoConfs, loading, error, reload, loa
 								<StatesSubtitle>{getErrorMessage(error)}</StatesSubtitle>
 							</States>
 						)}
-						{!error && total === 0 && (
-							<States>
-								<StatesIcon name='video' />
-								<StatesTitle>{t('No_history')}</StatesTitle>
-								<StatesSubtitle>{t('There_is_no_video_conference_history_in_this_room')}</StatesSubtitle>
-							</States>
+						{!loading && total === 0 && (
+							<ContextualbarEmptyContent
+								icon='phone'
+								title={t('No_history')}
+								subtitle={t('There_is_no_video_conference_history_in_this_room')}
+							/>
 						)}
 					</Box>
 				)}
-				{videoConfs.length > 0 && (
-					<Box flexGrow={1} flexShrink={1} overflow='hidden' display='flex'>
+				<Box flexGrow={1} flexShrink={1} overflow='hidden' display='flex'>
+					{videoConfs.length > 0 && (
 						<Virtuoso
 							style={{
 								height: blockSize,
 								width: inlineSize,
 							}}
 							totalCount={total}
-							endReached={(start): unknown => loadMoreItems(start, Math.min(50, total - start))}
+							endReached={
+								loading
+									? (): void => undefined
+									: (start) => {
+											loadMoreItems(start, Math.min(50, total - start));
+										}
+							}
 							overscan={25}
 							data={videoConfs}
-							components={{ Scroller: ScrollableContentWrapper as any }}
+							components={{ Scroller: VirtuosoScrollbars }}
 							itemContent={(_index, data): ReactElement => <VideoConfListItem videoConfData={data} reload={reload} />}
 						/>
-					</Box>
-				)}
-			</VerticalBar.Content>
+					)}
+				</Box>
+			</ContextualbarContent>
 		</>
 	);
 };

@@ -1,57 +1,76 @@
+/* eslint-disable react/display-name, react/no-multi-comp */
 import type { IRoom, IUser } from '@rocket.chat/core-typings';
-import { ButtonGroup, Menu, Option } from '@rocket.chat/fuselage';
+import { ButtonGroup, IconButton, Skeleton } from '@rocket.chat/fuselage';
+import { GenericMenu } from '@rocket.chat/ui-client';
 import type { ReactElement } from 'react';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import UserInfo from '../../../../components/UserInfo';
-import { useActionSpread } from '../../../hooks/useActionSpread';
+import { UserInfoAction } from '../../../../components/UserInfo';
+import { useMemberExists } from '../../../hooks/useMemberExists';
 import { useUserInfoActions } from '../../hooks/useUserInfoActions';
 
 type UserInfoActionsProps = {
-	user: Pick<IUser, '_id' | 'username'>;
+	user: Pick<IUser, '_id' | 'username' | 'name' | 'freeSwitchExtension'>;
 	rid: IRoom['_id'];
-	backToList: () => void;
+	backToList?: () => void;
 };
 
 const UserInfoActions = ({ user, rid, backToList }: UserInfoActionsProps): ReactElement => {
-	const { actions: actionsDefinition, menu: menuOptions } = useActionSpread(
-		useUserInfoActions({ _id: user._id, username: user.username }, rid, backToList),
-	);
+	const { t } = useTranslation();
+	const {
+		data: isMemberData,
+		refetch,
+		isSuccess: membershipCheckSuccess,
+		isPending,
+	} = useMemberExists({ roomId: rid, username: user.username as string });
+
+	const isMember = membershipCheckSuccess && isMemberData?.isMember;
+	const { _id: userId, username, name, freeSwitchExtension } = user;
+
+	const { actions: actionsDefinition, menuActions: menuOptions } = useUserInfoActions({
+		rid,
+		user: { _id: userId, username, name, freeSwitchExtension },
+		size: 3,
+		isMember,
+		reload: () => {
+			backToList?.();
+			refetch();
+		},
+	});
 
 	const menu = useMemo(() => {
-		if (!menuOptions) {
+		if (!menuOptions?.length) {
 			return null;
 		}
 
 		return (
-			<Menu
+			<GenericMenu
+				button={<IconButton icon='kebab' secondary />}
+				title={t('More')}
 				key='menu'
-				mi='x4'
-				secondary
+				data-qa-id='UserUserInfo-menu'
+				sections={menuOptions}
+				placement='bottom-end'
 				small={false}
-				maxHeight='initial'
-				renderItem={({ label: { label, icon }, ...props }): ReactElement => <Option {...props} label={label} icon={icon} />}
-				flexShrink={0}
-				options={menuOptions}
 				data-qa='UserUserInfo-menu'
 			/>
 		);
-	}, [menuOptions]);
+	}, [menuOptions, t]);
 
 	// TODO: sanitize Action type to avoid any
 	const actions = useMemo(() => {
-		const mapAction = ([key, { label, icon, action }]: any): ReactElement => (
-			<UserInfo.Action key={key} title={label} label={label} onClick={action} icon={icon} />
+		const mapAction = ([key, { content, title, icon, onClick }]: any): ReactElement => (
+			<UserInfoAction key={key} title={title} label={content} onClick={onClick} icon={icon} />
 		);
 
 		return [...actionsDefinition.map(mapAction), menu].filter(Boolean);
 	}, [actionsDefinition, menu]);
 
-	return (
-		<ButtonGroup mi='neg-x4' flexShrink={0} flexWrap='nowrap' withTruncatedText justifyContent='center'>
-			{actions}
-		</ButtonGroup>
-	);
+	if (isPending) {
+		return <Skeleton w='full' />;
+	}
+	return <ButtonGroup align='center'>{actions}</ButtonGroup>;
 };
 
 export default UserInfoActions;

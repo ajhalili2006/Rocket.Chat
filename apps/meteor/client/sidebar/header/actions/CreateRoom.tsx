@@ -1,33 +1,18 @@
-import { Sidebar, Dropdown } from '@rocket.chat/fuselage';
-import { useAtLeastOnePermission } from '@rocket.chat/ui-contexts';
-import type { HTMLAttributes, VFC } from 'react';
-import React, { useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { Sidebar } from '@rocket.chat/fuselage';
+import { GenericMenu } from '@rocket.chat/ui-client';
+import type { HTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { useDropdownVisibility } from '../hooks/useDropdownVisibility';
-import CreateRoomList from './CreateRoomList';
+import { useCreateRoom } from './hooks/useCreateRoomMenu';
 
-const CREATE_ROOM_PERMISSIONS = ['create-c', 'create-p', 'create-d', 'start-discussion', 'start-discussion-other-user'];
+type CreateRoomProps = Omit<HTMLAttributes<HTMLElement>, 'is'>;
 
-const CreateRoom: VFC<Omit<HTMLAttributes<HTMLElement>, 'is'>> = (props) => {
-	const reference = useRef(null);
-	const target = useRef(null);
-	const { isVisible, toggle } = useDropdownVisibility({ reference, target });
+const CreateRoom = (props: CreateRoomProps) => {
+	const { t } = useTranslation();
 
-	const showCreate = useAtLeastOnePermission(CREATE_ROOM_PERMISSIONS);
+	const sections = useCreateRoom();
 
-	return (
-		<>
-			{showCreate && <Sidebar.TopBar.Action icon='edit-rounded' onClick={(): void => toggle()} {...props} ref={reference} />}
-			{isVisible &&
-				createPortal(
-					<Dropdown reference={reference} ref={target}>
-						<CreateRoomList closeList={(): void => toggle(false)} />
-					</Dropdown>,
-					document.body,
-				)}
-		</>
-	);
+	return <GenericMenu icon='edit-rounded' sections={sections} title={t('Create_new')} is={Sidebar.TopBar.Action} {...props} />;
 };
 
 export default CreateRoom;

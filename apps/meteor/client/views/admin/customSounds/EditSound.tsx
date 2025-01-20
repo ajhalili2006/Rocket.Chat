@@ -1,12 +1,13 @@
-import { Box, Button, ButtonGroup, Margins, TextInput, Field, Icon, IconButton } from '@rocket.chat/fuselage';
-import { useSetModal, useToastMessageDispatch, useMethod, useTranslation } from '@rocket.chat/ui-contexts';
+import { Box, Button, ButtonGroup, Margins, TextInput, Field, FieldLabel, FieldRow, IconButton } from '@rocket.chat/fuselage';
+import { useSetModal, useToastMessageDispatch, useMethod } from '@rocket.chat/ui-contexts';
 import type { ReactElement, SyntheticEvent } from 'react';
-import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import { useCallback, useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import GenericModal from '../../../components/GenericModal';
-import VerticalBar from '../../../components/VerticalBar';
-import { useFileInput } from '../../../hooks/useFileInput';
 import { validate, createSoundData } from './lib';
+import { ContextualbarScrollableContent, ContextualbarFooter } from '../../../components/Contextualbar';
+import GenericModal from '../../../components/GenericModal';
+import { useSingleFileInput } from '../../../hooks/useSingleFileInput';
 
 type EditSoundProps = {
 	close?: () => void;
@@ -19,7 +20,7 @@ type EditSoundProps = {
 };
 
 function EditSound({ close, onChange, data, ...props }: EditSoundProps): ReactElement {
-	const t = useTranslation();
+	const { t } = useTranslation();
 	const dispatchToastMessage = useToastMessageDispatch();
 	const setModal = useSetModal();
 
@@ -27,7 +28,14 @@ function EditSound({ close, onChange, data, ...props }: EditSoundProps): ReactEl
 	const previousSound = useMemo(() => data || {}, [data]);
 
 	const [name, setName] = useState(() => data?.name ?? '');
-	const [sound, setSound] = useState(() => data);
+	const [sound, setSound] = useState<
+		| {
+				_id: string;
+				name: string;
+				extension?: string;
+		  }
+		| File
+	>(() => data);
 
 	useEffect(() => {
 		setName(previousName || '');
@@ -38,22 +46,24 @@ function EditSound({ close, onChange, data, ...props }: EditSoundProps): ReactEl
 	const uploadCustomSound = useMethod('uploadCustomSound');
 	const insertOrUpdateSound = useMethod('insertOrUpdateSound');
 
-	const handleChangeFile = useCallback((soundFile) => {
+	const handleChangeFile = useCallback((soundFile: File) => {
 		setSound(soundFile);
 	}, []);
 
 	const hasUnsavedChanges = useMemo(() => previousName !== name || previousSound !== sound, [name, previousName, previousSound, sound]);
 
 	const saveAction = useCallback(
-		async (sound) => {
+		// FIXME
+		async (sound: any) => {
 			const soundData = createSoundData(sound, name, { previousName, previousSound, _id, extension: sound.extension });
 			const validation = validate(soundData, sound);
 			if (validation.length === 0) {
-				let soundId;
+				let soundId: string;
 				try {
 					soundId = await insertOrUpdateSound(soundData);
 				} catch (error) {
 					dispatchToastMessage({ type: 'error', message: error });
+					return;
 				}
 
 				soundData._id = soundId;
@@ -66,7 +76,7 @@ function EditSound({ close, onChange, data, ...props }: EditSoundProps): ReactEl
 					reader.readAsBinaryString(sound);
 					reader.onloadend = (): void => {
 						try {
-							uploadCustomSound(reader.result, sound.type, soundData);
+							uploadCustomSound(reader.result as string, sound.type, { ...soundData, _id: soundId });
 							return dispatchToastMessage({ type: 'success', message: t('File_uploaded') });
 						} catch (error) {
 							dispatchToastMessage({ type: 'error', message: error });
@@ -75,10 +85,10 @@ function EditSound({ close, onChange, data, ...props }: EditSoundProps): ReactEl
 				}
 			}
 
-			validation.forEach((error) =>
+			validation.forEach((invalidFieldName) =>
 				dispatchToastMessage({
 					type: 'error',
-					message: t('error-the-field-is-required', { field: t(error) }),
+					message: t('Required_field', { field: t(invalidFieldName) }),
 				}),
 			);
 		},
@@ -91,83 +101,69 @@ function EditSound({ close, onChange, data, ...props }: EditSoundProps): ReactEl
 	}, [saveAction, sound, onChange]);
 
 	const handleDeleteButtonClick = useCallback(() => {
-		const handleClose = (): void => {
-			setModal(null);
-			close?.();
-			onChange();
-		};
-
 		const handleDelete = async (): Promise<void> => {
 			try {
 				await deleteCustomSound(_id);
-				setModal(() => (
-					<GenericModal variant='success' onCancel={handleClose} onClose={handleClose} onConfirm={handleClose}>
-						{t('Custom_Sound_Has_Been_Deleted')}
-					</GenericModal>
-				));
+				dispatchToastMessage({ type: 'success', message: t('Custom_Sound_Has_Been_Deleted') });
 			} catch (error) {
 				dispatchToastMessage({ type: 'error', message: error });
+			} finally {
+				setModal(null);
+				close?.();
 				onChange();
 			}
 		};
 
-		const handleCancel = (): void => {
-			setModal(null);
-		};
+		const handleCancel = (): void => setModal(null);
 
-		setModal(() => (
+		setModal(
 			<GenericModal variant='danger' onConfirm={handleDelete} onCancel={handleCancel} onClose={handleCancel} confirmText={t('Delete')}>
 				{t('Custom_Sound_Delete_Warning')}
-			</GenericModal>
-		));
+			</GenericModal>,
+		);
 	}, [_id, close, deleteCustomSound, dispatchToastMessage, onChange, setModal, t]);
 
-	const [clickUpload] = useFileInput(handleChangeFile, 'audio/mp3');
+	const [clickUpload] = useSingleFileInput(handleChangeFile, 'audio/mp3');
 
 	return (
-		<VerticalBar.ScrollableContent {...props}>
-			<Field>
-				<Field.Label>{t('Name')}</Field.Label>
-				<Field.Row>
-					<TextInput
-						value={name}
-						onChange={(e: SyntheticEvent<HTMLInputElement>): void => setName(e.currentTarget.value)}
-						placeholder={t('Name')}
-					/>
-				</Field.Row>
-			</Field>
-
-			<Field>
-				<Field.Label alignSelf='stretch'>{t('Sound_File_mp3')}</Field.Label>
-				<Box display='flex' flexDirection='row' mbs='none'>
-					<Margins inline='x4'>
-						<IconButton icon='upload' secondary onClick={clickUpload} />
-						{sound?.name || 'none'}
-					</Margins>
-				</Box>
-			</Field>
-
-			<Field>
-				<Field.Row>
-					<ButtonGroup stretch w='full'>
-						<Button onClick={close}>{t('Cancel')}</Button>
-						<Button primary onClick={handleSave} disabled={!hasUnsavedChanges}>
-							{t('Save')}
-						</Button>
-					</ButtonGroup>
-				</Field.Row>
-			</Field>
-			<Field>
-				<Field.Row>
-					<ButtonGroup stretch w='full'>
-						<Button danger onClick={handleDeleteButtonClick}>
-							<Icon name='trash' mie='x4' />
+		<>
+			<ContextualbarScrollableContent {...props}>
+				<Field>
+					<FieldLabel>{t('Name')}</FieldLabel>
+					<FieldRow>
+						<TextInput
+							value={name}
+							onChange={(e: SyntheticEvent<HTMLInputElement>): void => setName(e.currentTarget.value)}
+							placeholder={t('Name')}
+						/>
+					</FieldRow>
+				</Field>
+				<Field>
+					<FieldLabel alignSelf='stretch'>{t('Sound_File_mp3')}</FieldLabel>
+					<Box display='flex' flexDirection='row' mbs='none' alignItems='center'>
+						<Margins inline={4}>
+							<IconButton secondary small icon='upload' onClick={clickUpload} />
+							{sound?.name || 'none'}
+						</Margins>
+					</Box>
+				</Field>
+			</ContextualbarScrollableContent>
+			<ContextualbarFooter>
+				<ButtonGroup stretch>
+					<Button onClick={close}>{t('Cancel')}</Button>
+					<Button primary onClick={handleSave} disabled={!hasUnsavedChanges}>
+						{t('Save')}
+					</Button>
+				</ButtonGroup>
+				<Box mbs={8}>
+					<ButtonGroup stretch>
+						<Button icon='trash' danger onClick={handleDeleteButtonClick}>
 							{t('Delete')}
 						</Button>
 					</ButtonGroup>
-				</Field.Row>
-			</Field>
-		</VerticalBar.ScrollableContent>
+				</Box>
+			</ContextualbarFooter>
+		</>
 	);
 }
 

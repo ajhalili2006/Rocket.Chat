@@ -1,4 +1,4 @@
-import type { ILicense } from '@rocket.chat/core-typings';
+import type { LicenseInfo, Cloud } from '@rocket.chat/core-typings';
 import Ajv from 'ajv';
 
 const ajv = new Ajv({
@@ -22,9 +22,29 @@ const licensesAddPropsSchema = {
 
 export const isLicensesAddProps = ajv.compile<licensesAddProps>(licensesAddPropsSchema);
 
+type licensesInfoProps = {
+	loadValues?: boolean;
+};
+
+const licensesInfoPropsSchema = {
+	type: 'object',
+	properties: {
+		loadValues: {
+			type: 'boolean',
+		},
+	},
+	required: [],
+	additionalProperties: false,
+};
+
+export const isLicensesInfoProps = ajv.compile<licensesInfoProps>(licensesInfoPropsSchema);
+
 export type LicensesEndpoints = {
-	'/v1/licenses.get': {
-		GET: () => { licenses: Array<ILicense> };
+	'/v1/licenses.info': {
+		GET: (params: licensesInfoProps) => {
+			license: LicenseInfo;
+			cloudSyncAnnouncement?: Cloud.ICloudSyncAnnouncement;
+		};
 	};
 	'/v1/licenses.add': {
 		POST: (params: licensesAddProps) => void;
@@ -34,8 +54,5 @@ export type LicensesEndpoints = {
 	};
 	'/v1/licenses.requestSeatsLink': {
 		GET: () => { url: string };
-	};
-	'/v1/licenses.isEnterprise': {
-		GET: () => { isEnterprise: boolean };
 	};
 };

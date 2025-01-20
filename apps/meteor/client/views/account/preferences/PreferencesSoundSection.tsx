@@ -1,107 +1,155 @@
 import type { SelectOption } from '@rocket.chat/fuselage';
-import { Accordion, Field, Select, FieldGroup, ToggleSwitch, Tooltip, Box } from '@rocket.chat/fuselage';
-import { useUserPreference, useTranslation } from '@rocket.chat/ui-contexts';
-import type { ReactElement } from 'react';
-import React, { useMemo, useCallback } from 'react';
+import { AccordionItem, Field, FieldLabel, FieldRow, Select, FieldGroup, ToggleSwitch, FieldHint, Slider } from '@rocket.chat/fuselage';
+import { useUniqueId } from '@rocket.chat/fuselage-hooks';
+import { useTranslation, useCustomSound } from '@rocket.chat/ui-contexts';
+import { Controller, useFormContext } from 'react-hook-form';
 
-import { CustomSounds } from '../../../../app/custom-sounds/client';
-import { useForm } from '../../../hooks/useForm';
-import type { FormSectionProps } from './AccountPreferencesPage';
-
-type Values = {
-	newRoomNotification: string;
-	newMessageNotification: string;
-	muteFocusedConversations: boolean;
-	notificationsSoundVolume: number;
-};
-const useCustomSoundsOptions = (): SelectOption[] => useMemo(() => CustomSounds?.getList?.().map(({ _id, name }) => [_id, name]), []);
-
-const PreferencesSoundSection = ({ onChange, commitRef, ...props }: FormSectionProps): ReactElement => {
+const PreferencesSoundSection = () => {
 	const t = useTranslation();
 
-	const soundsList = useCustomSoundsOptions();
+	const customSound = useCustomSound();
+	const soundsList: SelectOption[] = customSound?.getList()?.map((value) => [value._id, value.name]) || [];
+	const { control, watch } = useFormContext();
+	const { newMessageNotification, notificationsSoundVolume = 100, masterVolume = 100, voipRingerVolume = 100 } = watch();
 
-	const settings = {
-		newRoomNotification: useUserPreference('newRoomNotification'),
-		newMessageNotification: useUserPreference('newMessageNotification'),
-		muteFocusedConversations: useUserPreference('muteFocusedConversations'),
-		notificationsSoundVolume: useUserPreference('notificationsSoundVolume'),
-	};
-
-	const { values, handlers, commit } = useForm(settings, onChange);
-
-	const { newRoomNotification, newMessageNotification, muteFocusedConversations, notificationsSoundVolume } = values as Values;
-
-	const { handleNewRoomNotification, handleNewMessageNotification, handleMuteFocusedConversations, handleNotificationsSoundVolume } =
-		handlers;
-
-	const onChangeNotificationsSoundVolume = useCallback(
-		(e) => handleNotificationsSoundVolume(Math.max(0, Math.min(Number(e.currentTarget.value), 100))),
-		[handleNotificationsSoundVolume],
-	);
-
-	commitRef.current.sound = commit;
+	const newRoomNotificationId = useUniqueId();
+	const newMessageNotificationId = useUniqueId();
+	const muteFocusedConversationsId = useUniqueId();
+	const masterVolumeId = useUniqueId();
+	const notificationsSoundVolumeId = useUniqueId();
+	const voipRingerVolumeId = useUniqueId();
 
 	return (
-		<Accordion.Item title={t('Sound')} {...props}>
+		<AccordionItem title={t('Sound')}>
 			<FieldGroup>
-				{useMemo(
-					() => (
-						<Field>
-							<Field.Label>{t('New_Room_Notification')}</Field.Label>
-							<Field.Row>
-								<Select value={newRoomNotification} onChange={handleNewRoomNotification} options={soundsList} />
-							</Field.Row>
-						</Field>
-					),
-					[handleNewRoomNotification, newRoomNotification, soundsList, t],
-				)}
-				{useMemo(
-					() => (
-						<Field>
-							<Field.Label>{t('New_Message_Notification')}</Field.Label>
-							<Field.Row>
-								<Select value={newMessageNotification} onChange={handleNewMessageNotification} options={soundsList} />
-							</Field.Row>
-						</Field>
-					),
-					[handleNewMessageNotification, newMessageNotification, soundsList, t],
-				)}
-				{useMemo(
-					() => (
-						<Field display='flex' flexDirection='row' justifyContent='spaceBetween' flexGrow={1}>
-							<Field.Label>{t('Mute_Focused_Conversations')}</Field.Label>
-							<Field.Row>
-								<ToggleSwitch checked={muteFocusedConversations} onChange={handleMuteFocusedConversations} />
-							</Field.Row>
-						</Field>
-					),
-					[handleMuteFocusedConversations, muteFocusedConversations, t],
-				)}
-				{useMemo(
-					() => (
-						<Field>
-							<Field.Label>{t('Notifications_Sound_Volume')}</Field.Label>
-							<Field.Row>
-								<Box
-									is='input'
-									flexGrow={1}
-									type='range'
-									value={notificationsSoundVolume}
-									onChange={onChangeNotificationsSoundVolume}
-									min='0'
-									max='100'
+				<Field>
+					<FieldLabel aria-describedby={`${masterVolumeId}-hint`}>{t('Master_volume')}</FieldLabel>
+					<FieldHint id={`${masterVolumeId}-hint`} mbe={4}>
+						{t('Master_volume_hint')}
+					</FieldHint>
+					<FieldRow>
+						<Controller
+							name='masterVolume'
+							control={control}
+							render={({ field: { onChange, value } }) => (
+								<Slider
+									aria-labelledby={masterVolumeId}
+									aria-describedby={`${masterVolumeId}-hint`}
+									value={value}
+									minValue={0}
+									maxValue={100}
+									onChange={onChange}
 								/>
-								<Tooltip placement='right' mis='x8'>
-									{notificationsSoundVolume}
-								</Tooltip>
-							</Field.Row>
-						</Field>
-					),
-					[notificationsSoundVolume, onChangeNotificationsSoundVolume, t],
-				)}
+							)}
+						/>
+					</FieldRow>
+				</Field>
+				<Field>
+					<FieldLabel id={notificationsSoundVolumeId}>{t('Notification_volume')}</FieldLabel>
+					<FieldHint id={`${notificationsSoundVolumeId}-hint`} mbe={4}>
+						{t('Notification_volume_hint')}
+					</FieldHint>
+					<FieldRow>
+						<Controller
+							name='notificationsSoundVolume'
+							control={control}
+							render={({ field: { onChange, value } }) => (
+								<Slider
+									aria-labelledby={notificationsSoundVolumeId}
+									aria-describedby={`${notificationsSoundVolumeId}-hint`}
+									value={value}
+									minValue={0}
+									maxValue={100}
+									onChange={(value: number) => {
+										const soundVolume = (notificationsSoundVolume * masterVolume) / 100;
+										customSound.play(newMessageNotification, { volume: soundVolume / 100 });
+										onChange(value);
+									}}
+								/>
+							)}
+						/>
+					</FieldRow>
+				</Field>
+				<Field>
+					<FieldLabel aria-describedby={`${voipRingerVolumeId}-hint`}>{t('Call_ringer_volume')}</FieldLabel>
+					<FieldHint id={`${voipRingerVolumeId}-hint`} mbe={4}>
+						{t('Call_ringer_volume_hint')}
+					</FieldHint>
+					<FieldRow>
+						<Controller
+							name='voipRingerVolume'
+							control={control}
+							render={({ field: { onChange, value } }) => (
+								<Slider
+									aria-labelledby={voipRingerVolumeId}
+									aria-describedby={`${voipRingerVolumeId}-hint`}
+									value={value}
+									minValue={0}
+									maxValue={100}
+									onChange={(value: number) => {
+										const soundVolume = (voipRingerVolume * masterVolume) / 100;
+										customSound.play('telephone', { volume: soundVolume / 100 });
+										onChange(value);
+									}}
+								/>
+							)}
+						/>
+					</FieldRow>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor={newRoomNotificationId}>{t('New_Room_Notification')}</FieldLabel>
+					<FieldRow>
+						<Controller
+							name='newRoomNotification'
+							control={control}
+							render={({ field: { value, onChange } }) => (
+								<Select
+									id={newRoomNotificationId}
+									value={value}
+									options={soundsList}
+									onChange={(value) => {
+										onChange(value);
+										customSound.play(String(value), { volume: notificationsSoundVolume / 100 });
+									}}
+								/>
+							)}
+						/>
+					</FieldRow>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor={newMessageNotificationId}>{t('New_Message_Notification')}</FieldLabel>
+					<FieldRow>
+						<Controller
+							name='newMessageNotification'
+							control={control}
+							render={({ field: { value, onChange } }) => (
+								<Select
+									id={newMessageNotificationId}
+									value={value}
+									options={soundsList}
+									onChange={(value) => {
+										onChange(value);
+										customSound.play(String(value), { volume: notificationsSoundVolume / 100 });
+									}}
+								/>
+							)}
+						/>
+					</FieldRow>
+				</Field>
+				<Field>
+					<FieldRow>
+						<FieldLabel htmlFor={muteFocusedConversationsId}>{t('Mute_Focused_Conversations')}</FieldLabel>
+						<Controller
+							name='muteFocusedConversations'
+							control={control}
+							render={({ field: { ref, value, onChange } }) => (
+								<ToggleSwitch id={muteFocusedConversationsId} ref={ref} checked={value} onChange={onChange} />
+							)}
+						/>
+					</FieldRow>
+				</Field>
 			</FieldGroup>
-		</Accordion.Item>
+		</AccordionItem>
 	);
 };
 

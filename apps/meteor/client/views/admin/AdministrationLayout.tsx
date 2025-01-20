@@ -1,15 +1,21 @@
-import type { FC } from 'react';
-import React, { useEffect } from 'react';
+import type { ReactNode } from 'react';
 
-import { SideNav } from '../../../app/ui-utils/client';
+import AdminSidebar from './sidebar/AdminSidebar';
+import SidebarPortal from '../../sidebar/SidebarPortal';
 
-const AdministrationLayout: FC = ({ children }) => {
-	useEffect(() => {
-		SideNav.setFlex('adminFlex');
-		SideNav.openFlex();
-	}, []);
+type AdministrationLayoutProps = {
+	children?: ReactNode;
+};
 
-	return <>{children}</>;
+const AdministrationLayout = ({ children }: AdministrationLayoutProps) => {
+	return (
+		<>
+			<SidebarPortal>
+				<AdminSidebar />
+			</SidebarPortal>
+			{children}
+		</>
+	);
 };
 
 export default AdministrationLayout;

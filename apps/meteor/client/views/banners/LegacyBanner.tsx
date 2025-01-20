@@ -1,6 +1,6 @@
 import { Banner, Icon } from '@rocket.chat/fuselage';
-import type { FC } from 'react';
-import React, { useCallback, useEffect } from 'react';
+import DOMPurify from 'dompurify';
+import { useCallback, useEffect } from 'react';
 
 import type { LegacyBannerPayload } from '../../lib/banners';
 import * as banners from '../../lib/banners';
@@ -9,7 +9,7 @@ type LegacyBannerProps = {
 	config: LegacyBannerPayload;
 };
 
-const LegacyBanner: FC<LegacyBannerProps> = ({ config }) => {
+const LegacyBanner = ({ config }: LegacyBannerProps) => {
 	const { closable = true, title, text, html, icon, modifiers } = config;
 
 	const inline = !modifiers?.includes('large');
@@ -44,14 +44,16 @@ const LegacyBanner: FC<LegacyBannerProps> = ({ config }) => {
 			inline={inline}
 			actionable={!!config.action}
 			closeable={closable}
-			icon={icon ? <Icon name={icon} size={20} /> : undefined}
-			title={title}
+			icon={icon ? <Icon name={icon} size='x20' /> : undefined}
+			title={typeof title === 'function' ? title() : title}
 			variant={variant}
 			onAction={handleAction}
 			onClose={handleClose}
 		>
-			{text}
-			{html && <div dangerouslySetInnerHTML={{ __html: html }} />}
+			{typeof text === 'function' ? text() : text}
+			{html && (
+				<div dangerouslySetInnerHTML={{ __html: typeof html === 'function' ? DOMPurify.sanitize(html()) : DOMPurify.sanitize(html) }} />
+			)}
 		</Banner>
 	);
 };

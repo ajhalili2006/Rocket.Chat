@@ -1,8 +1,10 @@
+import type { ThemePreference } from '@rocket.chat/core-typings';
 import Ajv from 'ajv';
 
 const ajv = new Ajv({
 	coerceTypes: true,
 });
+export type FontSize = '100%' | '14px' | '18px' | '20px' | '24px';
 
 export type UsersSetPreferencesParamsPOST = {
 	userId?: string;
@@ -17,14 +19,16 @@ export type UsersSetPreferencesParamsPOST = {
 		autoImageLoad?: boolean;
 		emailNotificationMode?: string;
 		unreadAlert?: boolean;
+		masterVolume?: number;
 		notificationsSoundVolume?: number;
+		voipRingerVolume?: number;
 		desktopNotifications?: string;
 		pushNotifications?: string;
 		enableAutoAway?: boolean;
 		highlights?: string[];
 		alsoSendThreadToChannel?: 'never' | 'always' | 'default';
 		desktopNotificationRequireInteraction?: boolean;
-		messageViewMode?: number;
+		showThreadsInMainChannel?: boolean;
 		hideUsernames?: boolean;
 		hideRoles?: boolean;
 		displayAvatars?: boolean;
@@ -39,9 +43,17 @@ export type UsersSetPreferencesParamsPOST = {
 		sidebarGroupByType?: boolean;
 		muteFocusedConversations?: boolean;
 		dontAskAgainList?: Array<{ action: string; label: string }>;
+		featuresPreview?: { name: string; value: boolean }[];
+		themeAppearence?: ThemePreference;
+		fontSize?: FontSize;
 		receiveLoginDetectionEmail?: boolean;
-		useLegacyMessageTemplate?: boolean;
+		notifyCalendarEvents?: boolean;
 		idleTimeLimit?: number;
+		omnichannelTranscriptEmail?: boolean;
+		omnichannelTranscriptPDF?: boolean;
+		omnichannelHideConversationAfterClosing?: boolean;
+		enableMobileRinging?: boolean;
+		mentionsWithSymbol?: boolean;
 	};
 };
 
@@ -100,7 +112,15 @@ const UsersSetPreferencesParamsPostSchema = {
 					type: 'boolean',
 					nullable: true,
 				},
+				masterVolume: {
+					type: 'number',
+					nullable: true,
+				},
 				notificationsSoundVolume: {
+					type: 'number',
+					nullable: true,
+				},
+				voipRingerVolume: {
 					type: 'number',
 					nullable: true,
 				},
@@ -123,12 +143,12 @@ const UsersSetPreferencesParamsPostSchema = {
 					},
 					nullable: true,
 				},
-				desktopNotificationRequireInteraction: {
+				showThreadsInMainChannel: {
 					type: 'boolean',
 					nullable: true,
 				},
-				messageViewMode: {
-					type: 'number',
+				desktopNotificationRequireInteraction: {
+					type: 'boolean',
 					nullable: true,
 				},
 				hideUsernames: {
@@ -194,16 +214,55 @@ const UsersSetPreferencesParamsPostSchema = {
 					},
 					nullable: true,
 				},
-				useLegacyMessageTemplate: {
-					type: 'boolean',
+				featuresPreview: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							name: { type: 'string' },
+							value: { type: 'boolean' },
+						},
+					},
+					nullable: true,
+				},
+				themeAppearence: {
+					type: 'string',
+					nullable: true,
+				},
+				fontSize: {
+					type: 'string',
 					nullable: true,
 				},
 				receiveLoginDetectionEmail: {
 					type: 'boolean',
 					nullable: true,
 				},
+				notifyCalendarEvents: {
+					type: 'boolean',
+					nullable: true,
+				},
 				idleTimeLimit: {
 					type: 'number',
+					nullable: true,
+				},
+				omnichannelTranscriptEmail: {
+					type: 'boolean',
+					nullable: true,
+				},
+				omnichannelTranscriptPDF: {
+					type: 'boolean',
+					nullable: true,
+				},
+				omnichannelHideConversationAfterClosing: {
+					type: 'boolean',
+					nullable: true,
+				},
+				enableMobileRinging: {
+					type: 'boolean',
+					nullable: true,
+				},
+				mentionsWithSymbol: {
+					type: 'boolean',
 					nullable: true,
 				},
 			},

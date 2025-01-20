@@ -1,28 +1,24 @@
 import { Box, IconButton, Badge } from '@rocket.chat/fuselage';
+import { UserAvatar } from '@rocket.chat/ui-avatar';
 import { action } from '@storybook/addon-actions';
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
 
-import * as Status from '../../components/UserStatus';
-import UserAvatar from '../../components/avatar/UserAvatar';
 import Extended from './Extended';
+import * as Status from '../../components/UserStatus';
 
 export default {
 	title: 'Sidebar/Extended',
 	component: Extended,
-	args: {
-		clickable: true,
-	},
 	decorators: [
 		(fn) => (
-			<Box maxWidth='x300' bg='neutral-800' borderRadius='x4'>
+			<Box maxWidth='x300' bg='dark' borderRadius='x4'>
 				{fn()}
 			</Box>
 		),
 	],
-} as ComponentMeta<typeof Extended>;
+} satisfies Meta<typeof Extended>;
 
-const Template: ComponentStory<typeof Extended> = (args) => (
+const Template: StoryFn<typeof Extended> = (args) => (
 	<Extended
 		{...args}
 		title={
@@ -51,7 +47,11 @@ const Template: ComponentStory<typeof Extended> = (args) => (
 				</Badge>
 			</Box>
 		}
-		titleIcon={<Box mi='x4'>{<Status.Online />}</Box>}
+		titleIcon={
+			<Box mi={4}>
+				<Status.Online />
+			</Box>
+		}
 		avatar={<UserAvatar username='john.doe' size='x16' url='https://via.placeholder.com/16' />}
 	/>
 );

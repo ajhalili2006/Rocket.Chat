@@ -1,8 +1,8 @@
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
+import { FormProvider, useForm } from 'react-hook-form';
 
-import VerticalBar from '../../../../components/VerticalBar';
 import PruneMessages from './PruneMessages';
+import { Contextualbar } from '../../../../components/Contextualbar';
 
 export default {
 	title: 'Room/Contextual Bar/PruneMessages',
@@ -11,15 +11,28 @@ export default {
 		layout: 'fullscreen',
 		actions: { argTypesRegex: '^on.*' },
 	},
-	decorators: [(fn) => <VerticalBar height='100vh'>{fn()}</VerticalBar>],
-} as ComponentMeta<typeof PruneMessages>;
+	decorators: [
+		(fn) => {
+			const methods = useForm({
+				defaultValues: {
+					pinned: true,
+				},
+			});
 
-const Template: ComponentStory<typeof PruneMessages> = (args) => <PruneMessages {...args} />;
+			return (
+				<FormProvider {...methods}>
+					<Contextualbar height='100vh'>{fn()}</Contextualbar>
+				</FormProvider>
+			);
+		},
+	],
+} satisfies Meta<typeof PruneMessages>;
+
+const Template: StoryFn<typeof PruneMessages> = (args) => <PruneMessages {...args} />;
 
 export const Default = Template.bind({});
 
 export const WithCallout = Template.bind({});
 WithCallout.args = {
-	values: { pinned: true },
 	callOutText: 'This is a callout',
 };

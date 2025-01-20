@@ -1,11 +1,20 @@
-import { Meteor } from 'meteor/meteor';
+import type { IWebdavAccount, IWebdavNode } from '@rocket.chat/core-typings';
+import type { ServerMethods } from '@rocket.chat/ddp-client';
 import { WebdavAccounts } from '@rocket.chat/models';
+import { Meteor } from 'meteor/meteor';
 
 import { settings } from '../../../settings/server';
 import { getWebdavCredentials } from '../lib/getWebdavCredentials';
 import { WebdavClientAdapter } from '../lib/webdavClientAdapter';
 
-Meteor.methods({
+declare module '@rocket.chat/ddp-client' {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	interface ServerMethods {
+		getFileFromWebdav(accountId: IWebdavAccount['_id'], file: IWebdavNode): Promise<{ success: boolean; data: Uint8Array }>;
+	}
+}
+
+Meteor.methods<ServerMethods>({
 	async getFileFromWebdav(accountId, file) {
 		const userId = Meteor.userId();
 

@@ -1,14 +1,14 @@
-import { Meteor } from 'meteor/meteor';
+import { Subscriptions } from '@rocket.chat/models';
 import {
 	isSubscriptionsGetProps,
 	isSubscriptionsGetOneProps,
 	isSubscriptionsReadProps,
 	isSubscriptionsUnreadProps,
 } from '@rocket.chat/rest-typings';
-import { Subscriptions } from '@rocket.chat/models';
+import { Meteor } from 'meteor/meteor';
 
-import { API } from '../api';
 import { readMessages } from '../../../../server/lib/readMessages';
+import { API } from '../api';
 
 API.v1.addRoute(
 	'subscriptions.get',
@@ -28,14 +28,14 @@ API.v1.addRoute(
 				updatedSinceDate = new Date(updatedSince as string);
 			}
 
-			const result = await Meteor.call('subscriptions/get', updatedSinceDate);
+			const result = await Meteor.callAsync('subscriptions/get', updatedSinceDate);
 
 			return API.v1.success(
 				Array.isArray(result)
 					? {
 							update: result,
 							remove: [],
-					  }
+						}
 					: result,
 			);
 		},
@@ -82,6 +82,7 @@ API.v1.addRoute(
 		async post() {
 			const { readThreads = false } = this.bodyParams;
 			const roomId = 'rid' in this.bodyParams ? this.bodyParams.rid : this.bodyParams.roomId;
+
 			await readMessages(roomId, this.userId, readThreads);
 
 			return API.v1.success();
@@ -96,8 +97,8 @@ API.v1.addRoute(
 		validateParams: isSubscriptionsUnreadProps,
 	},
 	{
-		post() {
-			Meteor.call('unreadMessages', (this.bodyParams as any).firstUnreadMessage, (this.bodyParams as any).roomId);
+		async post() {
+			await Meteor.callAsync('unreadMessages', (this.bodyParams as any).firstUnreadMessage, (this.bodyParams as any).roomId);
 
 			return API.v1.success();
 		},

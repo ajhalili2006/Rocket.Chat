@@ -1,109 +1,78 @@
-import type { AtLeast, IMessage, IRoom, ISubscription } from '@rocket.chat/core-typings';
-import { FlowRouter } from 'meteor/kadira:flow-router';
+import type { IMessage } from '@rocket.chat/core-typings';
+import { isE2EEPinnedMessage } from '@rocket.chat/core-typings';
 import { Meteor } from 'meteor/meteor';
 import { Tracker } from 'meteor/tracker';
 
+import { E2EEState } from '../../app/e2e/client/E2EEState';
 import { e2e } from '../../app/e2e/client/rocketchat.e2e';
-import { Subscriptions, Rooms } from '../../app/models/client';
-import { Notifications } from '../../app/notifications/client';
+import { MentionsParser } from '../../app/mentions/lib/MentionsParser';
+import { Rooms } from '../../app/models/client';
 import { settings } from '../../app/settings/client';
 import { onClientBeforeSendMessage } from '../lib/onClientBeforeSendMessage';
 import { onClientMessageReceived } from '../lib/onClientMessageReceived';
 import { isLayoutEmbedded } from '../lib/utils/isLayoutEmbedded';
 import { waitUntilFind } from '../lib/utils/waitUntilFind';
-
-const handle = async (roomId: IRoom['_id'], keyId: string): Promise<void> => {
-	const e2eRoom = await e2e.getInstanceByRoomId(roomId);
-	if (!e2eRoom) {
-		return;
-	}
-
-	e2eRoom.provideKeyToUser(keyId);
-};
+import { router } from '../providers/RouterProvider';
 
 Meteor.startup(() => {
 	Tracker.autorun(() => {
 		if (!Meteor.userId()) {
+			e2e.log('Not logged in');
 			return;
 		}
 
-		const adminEmbedded = isLayoutEmbedded() && FlowRouter.current().path.startsWith('/admin');
+		if (!window.crypto) {
+			e2e.error('No crypto support');
+			return;
+		}
 
-		if (!adminEmbedded && settings.get('E2E_Enable') && window.crypto) {
+		const enabled = settings.get('E2E_Enable');
+		// we don't care about the reactivity of this boolean
+		const adminEmbedded = isLayoutEmbedded() && router.getLocationPathname().startsWith('/admin');
+
+		if (enabled && !adminEmbedded) {
+			e2e.log('E2E enabled starting client');
 			e2e.startClient();
-			e2e.enabled.set(true);
 		} else {
-			e2e.enabled.set(false);
+			e2e.log('E2E disabled');
+			e2e.setState(E2EEState.DISABLED);
 			e2e.closeAlert();
 		}
 	});
 
-	let observable: Meteor.LiveQueryHandle | null = null;
 	let offClientMessageReceived: undefined | (() => void);
 	let offClientBeforeSendMessage: undefined | (() => void);
+	let listenersAttached = false;
+
 	Tracker.autorun(() => {
 		if (!e2e.isReady()) {
+			e2e.log('Not ready');
 			offClientMessageReceived?.();
-			Notifications.unUser('e2ekeyRequest', handle);
-			observable?.stop();
 			offClientBeforeSendMessage?.();
+			listenersAttached = false;
 			return;
 		}
 
-		Notifications.onUser('e2ekeyRequest', handle);
-
-		observable = Subscriptions.find().observe({
-			changed: async (doc: ISubscription) => {
-				if (!doc.encrypted && !doc.E2EKey) {
-					e2e.removeInstanceByRoomId(doc.rid);
-					return;
-				}
-
-				const e2eRoom = await e2e.getInstanceByRoomId(doc.rid);
-				if (!e2eRoom) {
-					return;
-				}
-
-				doc.encrypted ? e2eRoom.resume() : e2eRoom.pause();
-
-				// Cover private groups and direct messages
-				if (!e2eRoom.isSupportedRoomType(doc.t)) {
-					e2eRoom.disable();
-					return;
-				}
-
-				if (doc.E2EKey && e2eRoom.isWaitingKeys()) {
-					e2eRoom.keyReceived();
-					return;
-				}
-
-				if (!e2eRoom.isReady()) {
-					return;
-				}
-
-				e2eRoom.decryptSubscription();
-			},
-			added: async (doc: ISubscription) => {
-				if (!doc.encrypted && !doc.E2EKey) {
-					return;
-				}
-				return e2e.getInstanceByRoomId(doc.rid);
-			},
-			removed: (doc: ISubscription) => {
-				e2e.removeInstanceByRoomId(doc.rid);
-			},
-		});
+		if (listenersAttached) {
+			e2e.log('Listeners already attached');
+			return;
+		}
 
 		offClientMessageReceived = onClientMessageReceived.use(async (msg: IMessage) => {
 			const e2eRoom = await e2e.getInstanceByRoomId(msg.rid);
-			if (!e2eRoom || !e2eRoom.shouldConvertReceivedMessages()) {
+			if (!e2eRoom?.shouldConvertReceivedMessages()) {
 				return msg;
 			}
+
+			if (isE2EEPinnedMessage(msg)) {
+				return e2e.decryptPinnedMessage(msg);
+			}
+
 			return e2e.decryptMessage(msg);
 		});
 
 		// Encrypt messages before sending
-		offClientBeforeSendMessage = onClientBeforeSendMessage.use(async (message: AtLeast<IMessage, '_id' | 'rid' | 'msg'>) => {
+		offClientBeforeSendMessage = onClientBeforeSendMessage.use(async (message) => {
 			const e2eRoom = await e2e.getInstanceByRoomId(message.rid);
 
 			if (!e2eRoom) {
@@ -120,13 +89,32 @@ Meteor.startup(() => {
 				return message;
 			}
 
-			// Should encrypt this message.
-			const msg = await e2eRoom.encrypt(message);
+			const mentionsEnabled = settings.get<boolean>('E2E_Enabled_Mentions');
 
-			message.msg = msg;
-			message.t = 'e2e';
-			message.e2e = 'pending';
-			return message;
+			if (mentionsEnabled) {
+				const me = Meteor.user()?.username || '';
+				const pattern = settings.get('UTF8_User_Names_Validation');
+				const useRealName = settings.get('UI_Use_Real_Name');
+
+				const mentions = new MentionsParser({
+					pattern: () => pattern,
+					useRealName: () => useRealName,
+					me: () => me,
+				});
+
+				const e2eMentions: IMessage['e2eMentions'] = {
+					e2eUserMentions: mentions.getUserMentions(message.msg),
+					e2eChannelMentions: mentions.getChannelMentions(message.msg),
+				};
+
+				message.e2eMentions = e2eMentions;
+			}
+
+			// Should encrypt this message.
+			return e2eRoom.encryptMessage(message);
 		});
+
+		listenersAttached = true;
+		e2e.log('Listeners attached', listenersAttached);
 	});
 });

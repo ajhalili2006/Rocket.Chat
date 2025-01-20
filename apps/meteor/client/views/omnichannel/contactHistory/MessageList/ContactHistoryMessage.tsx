@@ -1,10 +1,9 @@
-import type { IMessage } from '@rocket.chat/core-typings';
+import { isQuoteAttachment, type IMessage, type MessageAttachment } from '@rocket.chat/core-typings';
 import {
 	Message as MessageTemplate,
 	MessageLeftContainer,
 	MessageContainer,
 	MessageBody,
-	MessageBlock,
 	MessageDivider,
 	MessageName,
 	MessageUsername,
@@ -17,44 +16,54 @@ import {
 	MessageSystemName,
 	MessageSystemBody,
 	MessageSystemTimestamp,
+	Bubble,
 } from '@rocket.chat/fuselage';
-import { useTranslation } from '@rocket.chat/ui-contexts';
-import type { FC } from 'react';
-import React, { memo } from 'react';
+import { UserAvatar } from '@rocket.chat/ui-avatar';
+import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import UserAvatar from '../../../../components/avatar/UserAvatar';
+import { getUserDisplayName } from '../../../../../lib/getUserDisplayName';
+import MessageContentBody from '../../../../components/message/MessageContentBody';
+import StatusIndicators from '../../../../components/message/StatusIndicators';
+import Attachments from '../../../../components/message/content/Attachments';
+import UiKitMessageBlock from '../../../../components/message/uikit/UiKitMessageBlock';
 import { useFormatDate } from '../../../../hooks/useFormatDate';
 import { useFormatTime } from '../../../../hooks/useFormatTime';
-import { getUserDisplayName } from '../../../../lib/getUserDisplayName';
-import MessageBlockUiKit from '../../../blocks/MessageBlock';
-import MessageContentBody from '../../../room/MessageList/components/MessageContentBody';
-import { MessageIndicators } from '../../../room/MessageList/components/MessageIndicators';
-import { useMessageActions } from '../../../room/contexts/MessageContext';
+import { useUserCard } from '../../../room/contexts/UserCardContext';
 
-const ContactHistoryMessage: FC<{
+type ContactHistoryMessageProps = {
 	message: IMessage;
 	sequential: boolean;
 	isNewDay: boolean;
-}> = ({ message, sequential, isNewDay }) => {
+	showUserAvatar: boolean;
+};
+
+const ContactHistoryMessage = ({ message, sequential, isNewDay, showUserAvatar }: ContactHistoryMessageProps) => {
+	const { t } = useTranslation();
+	const { triggerProps, openUserCard } = useUserCard();
+
 	const format = useFormatDate();
 	const formatTime = useFormatTime();
 
-	const t = useTranslation();
-	const {
-		actions: { openUserCard },
-	} = useMessageActions();
+	const quotes = message?.attachments?.filter(isQuoteAttachment) || [];
+
+	const attachments = message?.attachments?.filter((attachment: MessageAttachment) => !isQuoteAttachment(attachment)) || [];
 
 	if (message.t === 'livechat-close') {
 		return (
 			<MessageSystem>
 				<MessageSystemLeftContainer>
-					<UserAvatar
-						url={message.avatar}
-						username={message.u.username}
-						size={'x18'}
-						onClick={openUserCard(message.u.username)}
-						style={{ cursor: 'pointer' }}
-					/>
+					{showUserAvatar && (
+						<UserAvatar
+							url={message.avatar}
+							username={message.u.username}
+							size='x18'
+							onClick={(e) => openUserCard(e, message.u.username)}
+							style={{ cursor: 'pointer' }}
+							role='button'
+							{...triggerProps}
+						/>
+					)}
 				</MessageSystemLeftContainer>
 				<MessageSystemContainer>
 					<MessageSystemBlock>
@@ -71,21 +80,28 @@ const ContactHistoryMessage: FC<{
 
 	return (
 		<>
-			{isNewDay && <MessageDivider>{format(message.ts)}</MessageDivider>}
+			{isNewDay && (
+				<MessageDivider>
+					<Bubble small secondary>
+						{format(message.ts)}
+					</Bubble>
+				</MessageDivider>
+			)}
 			<MessageTemplate isPending={message.temp} sequential={sequential} role='listitem' data-qa='chat-history-message'>
 				<MessageLeftContainer>
-					{!sequential && message.u.username && (
+					{!sequential && message.u.username && showUserAvatar && (
 						<UserAvatar
 							url={message.avatar}
 							username={message.u.username}
-							size={'x36'}
-							onClick={openUserCard(message.u.username)}
+							size='x36'
+							onClick={(e) => openUserCard(e, message.u.username)}
 							style={{ cursor: 'pointer' }}
+							role='button'
+							{...triggerProps}
 						/>
 					)}
-					{sequential && <MessageIndicators message={message} />}
+					{sequential && <StatusIndicators message={message} />}
 				</MessageLeftContainer>
-
 				<MessageContainer>
 					{!sequential && (
 						<MessageHeaderTemplate>
@@ -96,19 +112,17 @@ const ContactHistoryMessage: FC<{
 								@{message.u.username}
 							</MessageUsername>
 							<MessageTimestamp title={formatTime(message.ts)}>{formatTime(message.ts)}</MessageTimestamp>
-							<MessageIndicators message={message} />
+							<StatusIndicators message={message} />
 						</MessageHeaderTemplate>
 					)}
+					{!!quotes?.length && <Attachments attachments={quotes} />}
 					{!message.blocks && message.md && (
-						<MessageBody data-qa-type='message-body'>
+						<MessageBody data-qa-type='message-body' dir='auto'>
 							<MessageContentBody md={message.md} mentions={message.mentions} channels={message.channels} />
 						</MessageBody>
 					)}
-					{message.blocks && (
-						<MessageBlock fixedWidth>
-							<MessageBlockUiKit mid={message._id} blocks={message.blocks} appId rid={message.rid} />
-						</MessageBlock>
-					)}
+					{message.blocks && <UiKitMessageBlock rid={message.rid} mid={message._id} blocks={message.blocks} />}
+					{!!attachments && <Attachments attachments={attachments} />}
 				</MessageContainer>
 			</MessageTemplate>
 		</>

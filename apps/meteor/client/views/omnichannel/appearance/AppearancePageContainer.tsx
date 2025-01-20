@@ -1,17 +1,16 @@
 import { Callout } from '@rocket.chat/fuselage';
-import { usePermission, useTranslation } from '@rocket.chat/ui-contexts';
-import type { FC } from 'react';
-import React from 'react';
+import { usePermission } from '@rocket.chat/ui-contexts';
+import { useTranslation } from 'react-i18next';
 
-import Page from '../../../components/Page';
+import AppearancePage from './AppearancePage';
+import { Page, PageHeader, PageScrollableContentWithShadow } from '../../../components/Page';
 import PageSkeleton from '../../../components/PageSkeleton';
 import { AsyncStatePhase } from '../../../hooks/useAsyncState';
 import { useEndpointData } from '../../../hooks/useEndpointData';
 import NotAuthorizedPage from '../../notAuthorized/NotAuthorizedPage';
-import AppearancePage from './AppearancePage';
 
-const AppearancePageContainer: FC = () => {
-	const t = useTranslation();
+const AppearancePageContainer = () => {
+	const { t } = useTranslation();
 
 	const { value: data, phase: state, error } = useEndpointData('/v1/livechat/appearance');
 
@@ -25,13 +24,13 @@ const AppearancePageContainer: FC = () => {
 		return <PageSkeleton />;
 	}
 
-	if (!data || !data.appearance || error) {
+	if (!data?.appearance || error) {
 		return (
 			<Page>
-				<Page.Header title={t('Edit_Custom_Field')} />
-				<Page.ScrollableContentWithShadow>
+				<PageHeader title={t('Edit_Custom_Field')} />
+				<PageScrollableContentWithShadow>
 					<Callout type='danger'>{t('Error')}</Callout>
-				</Page.ScrollableContentWithShadow>
+				</PageScrollableContentWithShadow>
 			</Page>
 		);
 	}

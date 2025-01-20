@@ -1,65 +1,36 @@
 import type { SelectOption } from '@rocket.chat/fuselage';
-import { Accordion, Field, FieldGroup, MultiSelect, ToggleSwitch, Callout } from '@rocket.chat/fuselage';
-import { useUserPreference, useTranslation } from '@rocket.chat/ui-contexts';
-import type { ReactElement } from 'react';
-import React, { useMemo } from 'react';
+import { AccordionItem, Field, FieldGroup, FieldLabel, FieldRow, MultiSelect } from '@rocket.chat/fuselage';
+import { useUniqueId } from '@rocket.chat/fuselage-hooks';
+import { useUserPreference } from '@rocket.chat/ui-contexts';
+import { Controller, useFormContext } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 
-import { useForm } from '../../../hooks/useForm';
-import type { FormSectionProps } from './AccountPreferencesPage';
+const PreferencesGlobalSection = () => {
+	const { t } = useTranslation();
 
-const PreferencesGlobalSection = ({ onChange, commitRef, ...props }: FormSectionProps): ReactElement => {
-	const t = useTranslation();
+	const userDontAskAgainList = useUserPreference<{ action: string; label: string }[]>('dontAskAgainList') || [];
+	const options: SelectOption[] = userDontAskAgainList.map(({ action, label }) => [action, label]);
 
-	const userDontAskAgainList = useUserPreference<{ action: string; label: string }[]>('dontAskAgainList');
-	const userLegacyMessageTemplate = useUserPreference('useLegacyMessageTemplate');
-
-	const options = useMemo(
-		() => (userDontAskAgainList || []).map(({ action, label }) => [action, label]) as SelectOption[],
-		[userDontAskAgainList],
-	);
-
-	const selectedOptions = options.map(([action]) => action);
-
-	const { values, handlers, commit } = useForm(
-		{
-			dontAskAgainList: selectedOptions,
-			useLegacyMessageTemplate: userLegacyMessageTemplate,
-		},
-		onChange,
-	);
-
-	const { dontAskAgainList, useLegacyMessageTemplate } = values as {
-		dontAskAgainList: string[];
-		useLegacyMessageTemplate: boolean;
-	};
-
-	const { handleDontAskAgainList, handleUseLegacyMessageTemplate } = handlers;
-
-	commitRef.current.global = commit;
+	const { control } = useFormContext();
+	const dontAskAgainListId = useUniqueId();
 
 	return (
-		<Accordion.Item title={t('Global')} {...props}>
+		<AccordionItem title={t('Global')}>
 			<FieldGroup>
 				<Field>
-					<Field.Label>{t('Dont_ask_me_again_list')}</Field.Label>
-					<Field.Row>
-						<MultiSelect
-							placeholder={t('Nothing_found')}
-							value={(dontAskAgainList.length > 0 && dontAskAgainList) || undefined}
-							onChange={handleDontAskAgainList}
-							options={options}
+					<FieldLabel htmlFor={dontAskAgainListId}>{t('Dont_ask_me_again_list')}</FieldLabel>
+					<FieldRow>
+						<Controller
+							name='dontAskAgainList'
+							control={control}
+							render={({ field: { value, onChange } }) => (
+								<MultiSelect id={dontAskAgainListId} placeholder={t('Nothing_found')} value={value} onChange={onChange} options={options} />
+							)}
 						/>
-					</Field.Row>
+					</FieldRow>
 				</Field>
-				<Field display='flex' alignItems='center' flexDirection='row' justifyContent='spaceBetween' flexGrow={1}>
-					<Field.Label>{t('Use_Legacy_Message_Template')}</Field.Label>
-					<Field.Row>
-						<ToggleSwitch checked={useLegacyMessageTemplate} onChange={handleUseLegacyMessageTemplate} />
-					</Field.Row>
-				</Field>
-				<Callout type='warning'>{t('This_is_a_deprecated_feature_alert')}</Callout>
 			</FieldGroup>
-		</Accordion.Item>
+		</AccordionItem>
 	);
 };
 

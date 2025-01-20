@@ -1,7 +1,4 @@
-import { Session } from '../Session';
-
-export type ProcessString = (text: string[]) => string;
-export type ProcessBuffer = (text: Buffer) => Buffer[];
+import { Session } from '../../../../app/ecdh/Session';
 
 export class ServerSession extends Session {
 	async init(clientPublic: string): Promise<void> {

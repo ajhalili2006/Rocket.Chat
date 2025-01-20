@@ -1,11 +1,17 @@
+import type { ServerMethods } from '@rocket.chat/ddp-client';
 import { Meteor } from 'meteor/meteor';
-import { check } from 'meteor/check';
 
-import { hasPermission } from '../../../authorization/server';
-import { Subscriptions } from '../../../models/server';
+import { saveAutoTranslateSettings } from '../functions/saveSettings';
 
-Meteor.methods({
-	'autoTranslate.saveSettings'(rid, field, value, options) {
+declare module '@rocket.chat/ddp-client' {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	interface ServerMethods {
+		'autoTranslate.saveSettings'(rid: string, field: string, value: string, options: { defaultLanguage: string }): boolean;
+	}
+}
+
+Meteor.methods<ServerMethods>({
+	async 'autoTranslate.saveSettings'(rid, field, value, options) {
 		const userId = Meteor.userId();
 		if (!userId) {
 			throw new Meteor.Error('error-invalid-user', 'Invalid user', {
@@ -13,41 +19,6 @@ Meteor.methods({
 			});
 		}
 
-		if (!hasPermission(userId, 'auto-translate')) {
-			throw new Meteor.Error('error-action-not-allowed', 'Auto-Translate is not allowed', {
-				method: 'autoTranslate.saveSettings',
-			});
-		}
-
-		check(rid, String);
-		check(field, String);
-		check(value, String);
-
-		if (['autoTranslate', 'autoTranslateLanguage'].indexOf(field) === -1) {
-			throw new Meteor.Error('error-invalid-settings', 'Invalid settings field', {
-				method: 'saveAutoTranslateSettings',
-			});
-		}
-
-		const subscription = Subscriptions.findOneByRoomIdAndUserId(rid, userId);
-		if (!subscription) {
-			throw new Meteor.Error('error-invalid-subscription', 'Invalid subscription', {
-				method: 'saveAutoTranslateSettings',
-			});
-		}
-
-		switch (field) {
-			case 'autoTranslate':
-				Subscriptions.updateAutoTranslateById(subscription._id, value === '1');
-				if (!subscription.autoTranslateLanguage && options.defaultLanguage) {
-					Subscriptions.updateAutoTranslateLanguageById(subscription._id, options.defaultLanguage);
-				}
-				break;
-			case 'autoTranslateLanguage':
-				Subscriptions.updateAutoTranslateLanguageById(subscription._id, value);
-				break;
-		}
-
-		return true;
+		return saveAutoTranslateSettings(userId, rid, field, value, options);
 	},
 });

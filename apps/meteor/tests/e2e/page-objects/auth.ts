@@ -11,16 +11,28 @@ export class Registration {
 		return this.page.locator('role=button[name="Send instructions"]');
 	}
 
+	get btnReset(): Locator {
+		return this.page.locator('role=button[name="Reset"]');
+	}
+
 	get btnLogin(): Locator {
 		return this.page.locator('role=button[name="Login"]');
 	}
 
-	get goToRegister(): Locator {
-		return this.page.locator('role=link[name="Create an account"]');
+	get btnLoginWithSaml(): Locator {
+		return this.page.locator('role=button[name="SAML test login button"]');
 	}
 
-	get main(): Locator {
-		return this.page.locator('role=main[name="Home"]');
+	get btnLoginWithGoogle(): Locator {
+		return this.page.locator('role=button[name="Sign in with Google"]');
+	}
+
+	get btnLoginWithCustomOAuth(): Locator {
+		return this.page.locator('role=button[name="Sign in with Test"]');
+	}
+
+	get goToRegister(): Locator {
+		return this.page.locator('role=link[name="Create an account"]');
 	}
 
 	get backToLogin(): Locator {
@@ -32,7 +44,7 @@ export class Registration {
 	}
 
 	get btnRegisterConfirmUsername(): Locator {
-		return this.page.locator('button[data-loading-text=" Please_wait ..."]');
+		return this.page.locator('role=button[name="Use this username"]');
 	}
 
 	get btnForgotPassword(): Locator {
@@ -62,10 +74,6 @@ export class Registration {
 	get inputPasswordConfirm(): Locator {
 		return this.page.locator('[name=passwordConfirmation]');
 	}
-
-	// get textErrorPasswordConfirm(): Locator {
-	// 	return this.page.locator('[name=confirm-pass]~.input-error');
-	// }
 
 	get forgotPasswordEmailCallout(): Locator {
 		return this.page.locator('role=status');

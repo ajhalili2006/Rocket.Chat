@@ -1,17 +1,23 @@
-import type { IRoom, IUser } from '@rocket.chat/core-typings';
+import { Message } from '@rocket.chat/core-services';
+import type { IUser } from '@rocket.chat/core-typings';
+import { Subscriptions } from '@rocket.chat/models';
 
-import { Rooms, Subscriptions, Messages } from '../../../models/server';
+import { getDefaultChannels } from './getDefaultChannels';
 import { callbacks } from '../../../../lib/callbacks';
+import { getSubscriptionAutotranslateDefaultConfig } from '../../../../server/lib/getSubscriptionAutotranslateDefaultConfig';
+import { getDefaultSubscriptionPref } from '../../../utils/lib/getDefaultSubscriptionPref';
+import { notifyOnSubscriptionChangedById } from '../lib/notifyListener';
 
-export const addUserToDefaultChannels = function (user: IUser, silenced?: boolean): void {
-	callbacks.run('beforeJoinDefaultChannels', user);
-	const defaultRooms = Rooms.findByDefaultAndTypes(true, ['c', 'p'], {
-		fields: { usernames: 0 },
-	}).fetch();
-	defaultRooms.forEach((room: IRoom) => {
-		if (!Subscriptions.findOneByRoomIdAndUserId(room._id, user._id)) {
+export const addUserToDefaultChannels = async function (user: IUser, silenced?: boolean): Promise<void> {
+	await callbacks.run('beforeJoinDefaultChannels', user);
+	const defaultRooms = await getDefaultChannels();
+
+	for await (const room of defaultRooms) {
+		if (!(await Subscriptions.findOneByRoomIdAndUserId(room._id, user._id, { projection: { _id: 1 } }))) {
+			const autoTranslateConfig = getSubscriptionAutotranslateDefaultConfig(user);
+
 			// Add a subscription to this user
-			Subscriptions.createWithRoomAndUser(room, user, {
+			const { insertedId } = await Subscriptions.createWithRoomAndUser(room, user, {
 				ts: new Date(),
 				open: true,
 				alert: true,
@@ -19,12 +25,18 @@ export const addUserToDefaultChannels = function (user: IUser, silenced?: boolea
 				userMentions: 1,
 				groupMentions: 0,
 				...(room.favorite && { f: true }),
+				...autoTranslateConfig,
+				...getDefaultSubscriptionPref(user),
 			});
+
+			if (insertedId) {
+				void notifyOnSubscriptionChangedById(insertedId, 'inserted');
+			}
 
 			// Insert user joined message
 			if (!silenced) {
-				Messages.createUserJoinWithRoomIdAndUser(room._id, user);
+				await Message.saveSystemMessage('uj', room._id, user.username || '', user);
 			}
 		}
-	});
+	}
 };

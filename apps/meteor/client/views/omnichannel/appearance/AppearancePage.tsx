@@ -1,13 +1,12 @@
 import type { ISetting, Serialized } from '@rocket.chat/core-typings';
 import { ButtonGroup, Button, Box } from '@rocket.chat/fuselage';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
-import { useToastMessageDispatch, useMethod, useTranslation } from '@rocket.chat/ui-contexts';
-import type { FC } from 'react';
-import React from 'react';
+import { useEffectEvent, useUniqueId } from '@rocket.chat/fuselage-hooks';
+import { useToastMessageDispatch, useEndpoint } from '@rocket.chat/ui-contexts';
+import { useForm, FormProvider } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 
-import Page from '../../../components/Page';
-import { useForm } from '../../../hooks/useForm';
 import AppearanceForm from './AppearanceForm';
+import { Page, PageHeader, PageScrollableContentWithShadow, PageFooter } from '../../../components/Page';
 
 type LivechatAppearanceSettings = {
 	Livechat_title: string;
@@ -29,6 +28,7 @@ type LivechatAppearanceSettings = {
 	Livechat_conversation_finished_text: string;
 	Livechat_enable_message_character_limit: boolean;
 	Livechat_message_character_limit: number;
+	Omnichannel_allow_visitors_to_close_conversation: boolean;
 };
 
 type AppearanceSettings = Partial<LivechatAppearanceSettings>;
@@ -39,49 +39,62 @@ const reduceAppearance = (settings: Serialized<ISetting>[]): AppearanceSettings 
 		return acc;
 	}, {});
 
-type AppearancePageProps = {
-	settings: Serialized<ISetting>[];
-};
-
-const AppearancePage: FC<AppearancePageProps> = ({ settings }) => {
-	const t = useTranslation();
+const AppearancePage = ({ settings }: { settings: Serialized<ISetting>[] }) => {
+	const { t } = useTranslation();
 	const dispatchToastMessage = useToastMessageDispatch();
 
-	const save: (settings: Pick<ISetting, '_id'>[] & { value: unknown }[]) => Promise<void> = useMethod('livechat:saveAppearance');
+	const saveAction = useEndpoint('POST', '/v1/livechat/appearance');
 
-	const { values, handlers, commit, reset, hasUnsavedChanges } = useForm(reduceAppearance(settings));
+	const methods = useForm<LivechatAppearanceSettings>({ defaultValues: reduceAppearance(settings) });
+	const {
+		reset,
+		formState: { isDirty },
+		handleSubmit,
+		watch,
+	} = methods;
 
-	const handleSave = useMutableCallback(async () => {
-		const mappedAppearance = Object.entries(values).map(([_id, value]) => ({ _id, value }));
+	const currentData = watch();
+
+	const handleSave = useEffectEvent(async (data: LivechatAppearanceSettings) => {
+		const mappedAppearance = Object.entries(data)
+			.map(([_id, value]) => ({ _id, value }))
+			.filter((item) => item.value !== undefined) as {
+			_id: string;
+			value: string | boolean | number;
+		}[];
 
 		try {
-			await save(mappedAppearance);
+			await saveAction(mappedAppearance);
 			dispatchToastMessage({ type: 'success', message: t('Settings_updated') });
-			commit();
-		} catch (error: unknown) {
+		} catch (error) {
 			dispatchToastMessage({ type: 'error', message: error });
+		} finally {
+			reset(currentData);
 		}
 	});
 
-	const handleResetButtonClick = (): void => {
-		reset();
-	};
+	const formId = useUniqueId();
 
 	return (
 		<Page>
-			<Page.Header title={t('Appearance')}>
-				<ButtonGroup align='end'>
-					<Button onClick={handleResetButtonClick}>{t('Reset')}</Button>
-					<Button primary onClick={handleSave} disabled={!hasUnsavedChanges}>
-						{t('Save')}
+			<PageHeader title={t('Appearance')} />
+			<PageScrollableContentWithShadow>
+				<Box maxWidth='x600' w='full' alignSelf='center'>
+					<FormProvider {...methods}>
+						<form id={formId} onSubmit={handleSubmit(handleSave)}>
+							<AppearanceForm />
+						</form>
+					</FormProvider>
+				</Box>
+			</PageScrollableContentWithShadow>
+			<PageFooter isDirty={isDirty}>
+				<ButtonGroup>
+					<Button onClick={() => reset()}>{t('Cancel')}</Button>
+					<Button form={formId} type='submit' primary>
+						{t('Save_changes')}
 					</Button>
 				</ButtonGroup>
-			</Page.Header>
-			<Page.ScrollableContentWithShadow>
-				<Box maxWidth='x600' w='full' alignSelf='center'>
-					<AppearanceForm values={values} handlers={handlers} />
-				</Box>
-			</Page.ScrollableContentWithShadow>
+			</PageFooter>
 		</Page>
 	);
 };

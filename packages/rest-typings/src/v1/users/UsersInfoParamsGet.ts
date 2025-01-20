@@ -4,8 +4,9 @@ const ajv = new Ajv({
 	coerceTypes: true,
 });
 
-export type UsersInfoParamsGet = ({ userId: string } | { username: string }) & {
+export type UsersInfoParamsGet = ({ userId: string } | { username: string } | { importId: string }) & {
 	fields?: string;
+	includeUserRooms?: string;
 };
 
 const UsersInfoParamsGetSchema = {
@@ -14,6 +15,9 @@ const UsersInfoParamsGetSchema = {
 			type: 'object',
 			properties: {
 				userId: {
+					type: 'string',
+				},
+				includeUserRooms: {
 					type: 'string',
 				},
 				fields: {
@@ -30,12 +34,32 @@ const UsersInfoParamsGetSchema = {
 				username: {
 					type: 'string',
 				},
+				includeUserRooms: {
+					type: 'string',
+				},
 				fields: {
 					type: 'string',
 					nullable: true,
 				},
 			},
 			required: ['username'],
+			additionalProperties: false,
+		},
+		{
+			type: 'object',
+			properties: {
+				importId: {
+					type: 'string',
+				},
+				includeUserRooms: {
+					type: 'string',
+				},
+				fields: {
+					type: 'string',
+					nullable: true,
+				},
+			},
+			required: ['importId'],
 			additionalProperties: false,
 		},
 	],

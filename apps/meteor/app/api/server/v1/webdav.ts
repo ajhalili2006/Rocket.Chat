@@ -1,3 +1,5 @@
+import { api } from '@rocket.chat/core-services';
+import { WebdavAccounts } from '@rocket.chat/models';
 import Ajv from 'ajv';
 
 import { API } from '../api';
@@ -21,7 +23,7 @@ const POSTRemoveWebdavAccountSchema = {
 	additionalProperties: false,
 };
 
-export const isPOSTRemoveWebdavAccount = ajv.compile<POSTRemoveWebdavAccount>(POSTRemoveWebdavAccountSchema);
+const isPOSTRemoveWebdavAccount = ajv.compile<POSTRemoveWebdavAccount>(POSTRemoveWebdavAccountSchema);
 
 API.v1.addRoute(
 	'webdav.getMyAccounts',
@@ -45,9 +47,15 @@ API.v1.addRoute(
 		async post() {
 			const { accountId } = this.bodyParams;
 
-			const result = Meteor.call('removeWebdavAccount', accountId);
+			const removed = await WebdavAccounts.removeByUserAndId(accountId, this.userId);
+			if (removed) {
+				void api.broadcast('notify.webdav', this.userId, {
+					type: 'removed',
+					account: { _id: accountId },
+				});
+			}
 
-			return API.v1.success({ result });
+			return API.v1.success({ result: removed });
 		},
 	},
 );

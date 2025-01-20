@@ -14,9 +14,8 @@ import {
 import type * as UiKit from '@rocket.chat/ui-kit';
 import { action } from '@storybook/addon-actions';
 import type { ReactNode } from 'react';
-import React from 'react';
 
-import { kitContext, UiKitModal } from '..';
+import { UiKitContext, UiKitModal } from '..';
 import * as payloads from './payloads';
 
 type VisibilityType = 'hidden' | 'visible' | 'hiding' | 'unhiding' | undefined;
@@ -74,17 +73,16 @@ const createStory = (blocks: readonly UiKit.LayoutBlock[], errors = {}) => {
     visible: boolean;
   }) => (
     <DemoModal visible={visible}>
-      <kitContext.Provider
+      <UiKitContext.Provider
         value={{
           action: action('action'),
-          state: action('state'),
+          updateState: action('updateState'),
           values: {},
-          appId: 'core',
           errors,
         }}
       >
         {UiKitModal(blocks)}
-      </kitContext.Provider>
+      </UiKitContext.Provider>
     </DemoModal>
   );
   story.args = {
@@ -102,23 +100,23 @@ export const SectionWithPlainText = createStory(payloads.sectionWithPlainText);
 export const SectionWithMrkdwn = createStory(payloads.sectionWithMrkdwn);
 
 export const SectionWithTextFields = createStory(
-  payloads.sectionWithTextFields
+  payloads.sectionWithTextFields,
 );
 
 export const SectionWithButtonAccessory = createStory(
-  payloads.sectionWithButtonAccessory
+  payloads.sectionWithButtonAccessory,
 );
 
 export const SectionWithImageAccessory = createStory(
-  payloads.sectionWithImageAccessory
+  payloads.sectionWithImageAccessory,
 );
 
 export const SectionWithOverflowMenuAccessory = createStory(
-  payloads.sectionWithOverflowMenuAccessory
+  payloads.sectionWithOverflowMenuAccessory,
 );
 
 export const SectionWithDatePickerAccessory = createStory(
-  payloads.sectionWithDatePickerAccessory
+  payloads.sectionWithDatePickerAccessory,
 );
 
 export const ImageWithTitle = createStory(payloads.imageWithTitle);
@@ -126,25 +124,25 @@ export const ImageWithTitle = createStory(payloads.imageWithTitle);
 export const ImageWithoutTitle = createStory(payloads.imageWithoutTitle);
 
 export const ActionsWithAllSelects = createStory(
-  payloads.actionsWithAllSelects
+  payloads.actionsWithAllSelects,
 );
 
 export const ActionsWithFilteredConversationsSelect = createStory(
-  payloads.actionsWithFilteredConversationsSelect
+  payloads.actionsWithFilteredConversationsSelect,
 );
 
 export const ActionsWithInitializedSelects = createStory(
-  payloads.actionsWithInitializedSelects
+  payloads.actionsWithInitializedSelects,
 );
 
 export const ActionsWithButton = createStory(payloads.actionsWithButton);
 
 export const ActionsWithButtonAsLink = createStory(
-  payloads.actionsWithButtonAsLink
+  payloads.actionsWithButtonAsLink,
 );
 
 export const ActionsWithDatePicker = createStory(
-  payloads.actionsWithDatePicker
+  payloads.actionsWithDatePicker,
 );
 
 export const ContextWithPlainText = createStory(payloads.contextWithPlainText);
@@ -152,35 +150,35 @@ export const ContextWithPlainText = createStory(payloads.contextWithPlainText);
 export const ContextWithMrkdwn = createStory(payloads.contextWithMrkdwn);
 
 export const ContextWithTextAndImages = createStory(
-  payloads.contextWithTextAndImages
+  payloads.contextWithTextAndImages,
 );
 
 export const InputWithMultilinePlainTextInput = createStory(
   payloads.inputWithMultilinePlainTextInput,
   {
     'input-0': 'Error',
-  }
+  },
 );
 
 export const InputWithPlainTextInput = createStory(
   payloads.inputWithPlainTextInput,
   {
     'input-0': 'Error',
-  }
+  },
 );
 
 export const InputWithMultiUsersSelect = createStory(
   payloads.inputWithMultiUsersSelect,
   {
     'input-0': 'Error',
-  }
+  },
 );
 
 export const InputWithStaticSelect = createStory(
   payloads.inputWithStaticSelect,
   {
     'input-0': 'Error',
-  }
+  },
 );
 
 export const InputWithDatePicker = createStory(payloads.inputWithDatePicker, {
@@ -192,3 +190,7 @@ export const InputWithLinearScale = createStory(payloads.inputWithLinearScale, {
 });
 
 export const Conditional = createStory(payloads.conditional);
+
+export const Callout = createStory(payloads.callout);
+
+export const CalloutWithAction = createStory(payloads.calloutWithAction);

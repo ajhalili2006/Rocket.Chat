@@ -1,13 +1,13 @@
-import { Meteor } from 'meteor/meteor';
+import { Users } from '@rocket.chat/models';
 
-import { Users } from '../../../../models/server';
+import { notifyOnUserChange } from '../../../../lib/server/lib/notifyListener';
 
-export default function handleQUIT(args) {
-	const user = Users.findOne({
+export default async function handleQUIT(args) {
+	const user = await Users.findOne({
 		'profile.irc.nick': args.nick,
 	});
 
-	Meteor.users.update(
+	await Users.updateOne(
 		{ _id: user._id },
 		{
 			$set: {
@@ -15,4 +15,6 @@ export default function handleQUIT(args) {
 			},
 		},
 	);
+
+	void notifyOnUserChange({ id: user._id, clientAction: 'updated', diff: { status: 'offline' } });
 }

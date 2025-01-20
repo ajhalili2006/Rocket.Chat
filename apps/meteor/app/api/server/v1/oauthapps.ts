@@ -1,19 +1,16 @@
-import { isOauthAppsGetParams, isOauthAppsAddParams } from '@rocket.chat/rest-typings';
 import { OAuthApps } from '@rocket.chat/models';
+import { isUpdateOAuthAppParams, isOauthAppsGetParams, isOauthAppsAddParams, isDeleteOAuthAppParams } from '@rocket.chat/rest-typings';
 
 import { hasPermissionAsync } from '../../../authorization/server/functions/hasPermission';
+import { apiDeprecationLogger } from '../../../lib/server/lib/deprecationWarningLogger';
+import { addOAuthApp } from '../../../oauth2-server-config/server/admin/functions/addOAuthApp';
 import { API } from '../api';
-import { addOAuthApp } from '../../../oauth2-server-config/server/admin/methods/addOAuthApp';
 
 API.v1.addRoute(
 	'oauth-apps.list',
-	{ authRequired: true },
+	{ authRequired: true, permissionsRequired: ['manage-oauth-apps'] },
 	{
 		async get() {
-			if (!(await hasPermissionAsync(this.userId, 'manage-oauth-apps'))) {
-				throw new Error('error-not-allowed');
-			}
-
 			return API.v1.success({
 				oauthApps: await OAuthApps.find().toArray(),
 			});
@@ -23,17 +20,22 @@ API.v1.addRoute(
 
 API.v1.addRoute(
 	'oauth-apps.get',
-	{ authRequired: true },
+	{ authRequired: true, validateParams: isOauthAppsGetParams },
 	{
 		async get() {
-			if (!isOauthAppsGetParams(this.queryParams)) {
-				return API.v1.failure('At least one of the query parameters "clientId" or "appId" is required.');
-			}
+			const isOAuthAppsManager = await hasPermissionAsync(this.userId, 'manage-oauth-apps');
 
-			const oauthApp = await OAuthApps.findOneAuthAppByIdOrClientId(this.queryParams);
+			const oauthApp = await OAuthApps.findOneAuthAppByIdOrClientId(
+				this.queryParams,
+				!isOAuthAppsManager ? { projection: { clientSecret: 0 } } : {},
+			);
 
 			if (!oauthApp) {
 				return API.v1.failure('OAuth app not found.');
+			}
+
+			if ('appId' in this.queryParams) {
+				apiDeprecationLogger.parameter(this.request.route, 'appId', '7.0.0', this.response);
 			}
 
 			return API.v1.success({
@@ -44,10 +46,47 @@ API.v1.addRoute(
 );
 
 API.v1.addRoute(
+	'oauth-apps.update',
+	{
+		authRequired: true,
+		validateParams: isUpdateOAuthAppParams,
+		permissionsRequired: ['manage-oauth-apps'],
+	},
+	{
+		async post() {
+			const { appId } = this.bodyParams;
+
+			const result = await Meteor.callAsync('updateOAuthApp', appId, this.bodyParams);
+
+			return API.v1.success(result);
+		},
+	},
+);
+
+API.v1.addRoute(
+	'oauth-apps.delete',
+	{
+		authRequired: true,
+		validateParams: isDeleteOAuthAppParams,
+		permissionsRequired: ['manage-oauth-apps'],
+	},
+	{
+		async post() {
+			const { appId } = this.bodyParams;
+
+			const result = await Meteor.callAsync('deleteOAuthApp', appId);
+
+			return API.v1.success(result);
+		},
+	},
+);
+
+API.v1.addRoute(
 	'oauth-apps.create',
 	{
 		authRequired: true,
 		validateParams: isOauthAppsAddParams,
+		permissionsRequired: ['manage-oauth-apps'],
 	},
 	{
 		async post() {

@@ -1,7 +1,6 @@
 import { Grid } from '@rocket.chat/fuselage';
 import * as UiKit from '@rocket.chat/ui-kit';
 import type { ReactElement } from 'react';
-import React from 'react';
 
 const breakpoints = {
   xs: 4,
@@ -19,7 +18,7 @@ type FieldsProps = {
 const Fields = ({ fields, surfaceRenderer }: FieldsProps): ReactElement => (
   <Grid>
     {fields.map((field, i) => (
-      <Grid.Item {...breakpoints} key={i}>
+      <Grid.Item key={i} {...breakpoints}>
         {surfaceRenderer.renderTextObject(field, 0, UiKit.BlockContext.NONE)}
       </Grid.Item>
     ))}

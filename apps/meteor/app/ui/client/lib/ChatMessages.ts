@@ -1,21 +1,60 @@
-import type { IMessage, IRoom } from '@rocket.chat/core-typings';
+import type { IMessage, IRoom, IUser } from '@rocket.chat/core-typings';
+import { isVideoConfMessage } from '@rocket.chat/core-typings';
+import type { IActionManager } from '@rocket.chat/ui-contexts';
 
+import { UserAction } from './UserAction';
+import type { ChatAPI, ComposerAPI, DataAPI, UploadsAPI } from '../../../../client/lib/chats/ChatAPI';
+import { createDataAPI } from '../../../../client/lib/chats/data';
+import { processMessageEditing } from '../../../../client/lib/chats/flows/processMessageEditing';
+import { processSetReaction } from '../../../../client/lib/chats/flows/processSetReaction';
+import { processSlashCommand } from '../../../../client/lib/chats/flows/processSlashCommand';
+import { processTooLongMessage } from '../../../../client/lib/chats/flows/processTooLongMessage';
+import { replyBroadcast } from '../../../../client/lib/chats/flows/replyBroadcast';
+import { requestMessageDeletion } from '../../../../client/lib/chats/flows/requestMessageDeletion';
+import { sendMessage } from '../../../../client/lib/chats/flows/sendMessage';
+import { uploadFiles } from '../../../../client/lib/chats/flows/uploadFiles';
+import { ReadStateManager } from '../../../../client/lib/chats/readStateManager';
 import { createUploadsAPI } from '../../../../client/lib/chats/uploads';
 import {
 	setHighlightMessage,
 	clearHighlightMessage,
 } from '../../../../client/views/room/MessageList/providers/messageHighlightSubscription';
-import type { ChatAPI, ComposerAPI, DataAPI, UploadsAPI } from '../../../../client/lib/chats/ChatAPI';
-import { createDataAPI } from '../../../../client/lib/chats/data';
-import { uploadFiles } from '../../../../client/lib/chats/flows/uploadFiles';
-import { processSlashCommand } from '../../../../client/lib/chats/flows/processSlashCommand';
-import { requestMessageDeletion } from '../../../../client/lib/chats/flows/requestMessageDeletion';
-import { processMessageEditing } from '../../../../client/lib/chats/flows/processMessageEditing';
-import { processTooLongMessage } from '../../../../client/lib/chats/flows/processTooLongMessage';
-import { processSetReaction } from '../../../../client/lib/chats/flows/processSetReaction';
-import { sendMessage } from '../../../../client/lib/chats/flows/sendMessage';
+
+type DeepWritable<T> = T extends (...args: any) => any
+	? T
+	: {
+			-readonly [P in keyof T]: DeepWritable<T[P]>;
+		};
 
 export class ChatMessages implements ChatAPI {
+	public uid: string | null;
+
+	public composer: ComposerAPI | undefined;
+
+	public setComposerAPI = (composer?: ComposerAPI): void => {
+		this.composer?.release();
+		this.composer = composer;
+	};
+
+	public data: DataAPI;
+
+	public readStateManager: ReadStateManager;
+
+	public uploads: UploadsAPI;
+
+	public ActionManager: any;
+
+	public emojiPicker: {
+		open(el: Element, cb: (emoji: string) => void): void;
+		close(): void;
+	};
+
+	public action: {
+		start(action: 'typing'): Promise<void> | void;
+		stop(action: 'typing' | 'recording' | 'uploading' | 'playing'): Promise<void> | void;
+		performContinuously(action: 'recording' | 'uploading' | 'playing'): Promise<void> | void;
+	};
+
 	private currentEditingMID?: string;
 
 	public messageEditing: ChatAPI['messageEditing'] = {
@@ -25,7 +64,12 @@ export class ChatMessages implements ChatAPI {
 			}
 
 			if (!this.currentEditing) {
-				const lastMessage = await this.data.findLastOwnMessage();
+				let lastMessage = await this.data.findLastOwnMessage();
+
+				// Videoconf messages should not be edited
+				if (lastMessage && isVideoConfMessage(lastMessage)) {
+					lastMessage = await this.data.findPreviousOwnMessage(lastMessage);
+				}
 
 				if (lastMessage) {
 					await this.data.saveDraft(undefined, this.composer.text);
@@ -36,7 +80,12 @@ export class ChatMessages implements ChatAPI {
 			}
 
 			const currentMessage = await this.data.findMessageByID(this.currentEditing.mid);
-			const previousMessage = currentMessage ? await this.data.findPreviousOwnMessage(currentMessage) : undefined;
+			let previousMessage = currentMessage ? await this.data.findPreviousOwnMessage(currentMessage) : undefined;
+
+			// Videoconf messages should not be edited
+			if (previousMessage && isVideoConfMessage(previousMessage)) {
+				previousMessage = await this.data.findPreviousOwnMessage(previousMessage);
+			}
 
 			if (previousMessage) {
 				await this.messageEditing.editMessage(previousMessage);
@@ -51,7 +100,12 @@ export class ChatMessages implements ChatAPI {
 			}
 
 			const currentMessage = await this.data.findMessageByID(this.currentEditing.mid);
-			const nextMessage = currentMessage ? await this.data.findNextOwnMessage(currentMessage) : undefined;
+			let nextMessage = currentMessage ? await this.data.findNextOwnMessage(currentMessage) : undefined;
+
+			// Videoconf messages should not be edited
+			if (nextMessage && isVideoConfMessage(nextMessage)) {
+				nextMessage = await this.data.findNextOwnMessage(nextMessage);
+			}
 
 			if (nextMessage) {
 				await this.messageEditing.editMessage(nextMessage, { cursorAtStart: true });
@@ -61,8 +115,7 @@ export class ChatMessages implements ChatAPI {
 			await this.currentEditing.cancel();
 		},
 		editMessage: async (message: IMessage, { cursorAtStart = false }: { cursorAtStart?: boolean } = {}) => {
-			const text = (await this.data.getDraft(message._id)) || message.attachments?.[0].description || message.msg;
-			const cursorPosition = cursorAtStart ? 0 : text.length;
+			const text = (await this.data.getDraft(message._id)) || message.attachments?.[0]?.description || message.msg;
 
 			await this.currentEditing?.stop();
 
@@ -72,24 +125,54 @@ export class ChatMessages implements ChatAPI {
 
 			this.currentEditingMID = message._id;
 			setHighlightMessage(message._id);
-			this.composer?.setEditingMode(true);
+			this.composer.setEditingMode(true);
 
-			this.composer.setText(text, { selection: { start: cursorPosition, end: cursorPosition } });
-			this.composer?.focus();
+			this.composer.setText(text);
+			cursorAtStart && this.composer.setCursorToStart();
+			!cursorAtStart && this.composer.setCursorToEnd();
+			this.composer.focus();
 		},
 	};
 
-	public composer: ComposerAPI | undefined;
+	public flows: DeepWritable<ChatAPI['flows']>;
 
-	public readonly data: DataAPI;
+	public constructor(
+		private params: {
+			rid: IRoom['_id'];
+			tmid?: IMessage['_id'];
+			uid: IUser['_id'] | null;
+			actionManager: IActionManager;
+		},
+	) {
+		const { rid, tmid } = params;
+		this.uid = params.uid;
+		this.data = createDataAPI({ rid, tmid });
+		this.uploads = createUploadsAPI({ rid, tmid });
+		this.ActionManager = params.actionManager;
 
-	public readonly uploads: UploadsAPI;
+		const unimplemented = () => {
+			throw new Error('Flow is not implemented');
+		};
 
-	public readonly flows: ChatAPI['flows'];
+		this.readStateManager = new ReadStateManager(rid);
 
-	public constructor(private params: { rid: IRoom['_id']; tmid?: IMessage['_id'] }) {
-		this.data = createDataAPI({ rid: params.rid, tmid: params.tmid });
-		this.uploads = createUploadsAPI({ rid: params.rid, tmid: params.tmid });
+		this.emojiPicker = {
+			open: unimplemented,
+			close: unimplemented,
+		};
+
+		this.action = {
+			start: async (action: 'typing') => {
+				UserAction.start(params.rid, `user-${action}`, { tmid: params.tmid });
+			},
+			performContinuously: async (action: 'recording' | 'uploading' | 'playing') => {
+				UserAction.performContinuously(params.rid, `user-${action}`, { tmid: params.tmid });
+			},
+			stop: async (action: 'typing' | 'recording' | 'uploading' | 'playing') => {
+				UserAction.stop(params.rid, `user-${action}`, { tmid: params.tmid });
+			},
+		};
+
 		this.flows = {
 			uploadFiles: uploadFiles.bind(null, this),
 			sendMessage: sendMessage.bind(this, this),
@@ -98,12 +181,8 @@ export class ChatMessages implements ChatAPI {
 			processMessageEditing: processMessageEditing.bind(null, this),
 			processSetReaction: processSetReaction.bind(null, this),
 			requestMessageDeletion: requestMessageDeletion.bind(this, this),
+			replyBroadcast: replyBroadcast.bind(null, this),
 		};
-	}
-
-	public setComposerAPI(composer: ComposerAPI): void {
-		this.composer?.release();
-		this.composer = composer;
 	}
 
 	public get currentEditing() {
@@ -156,44 +235,12 @@ export class ChatMessages implements ChatAPI {
 		};
 	}
 
-	private async release() {
-		this.composer?.release();
+	public async release() {
 		if (this.currentEditing) {
 			if (!this.params.tmid) {
 				await this.currentEditing.cancel();
 			}
 			this.composer?.clear();
-		}
-	}
-
-	private static refs = new Map<string, { instance: ChatMessages; count: number }>();
-
-	private static getID({ rid, tmid }: { rid: IRoom['_id']; tmid?: IMessage['_id'] }): string {
-		return `${rid}${tmid ? `-${tmid}` : ''}`;
-	}
-
-	public static hold({ rid, tmid }: { rid: IRoom['_id']; tmid?: IMessage['_id'] }) {
-		const id = this.getID({ rid, tmid });
-
-		const ref = this.refs.get(id) ?? { instance: new ChatMessages({ rid, tmid }), count: 0 };
-		ref.count++;
-		this.refs.set(id, ref);
-
-		return ref.instance;
-	}
-
-	public static release({ rid, tmid }: { rid: IRoom['_id']; tmid?: IMessage['_id'] }) {
-		const id = this.getID({ rid, tmid });
-
-		const ref = this.refs.get(id);
-		if (!ref) {
-			return;
-		}
-
-		ref.count--;
-		if (ref.count === 0) {
-			this.refs.delete(id);
-			ref.instance.release();
 		}
 	}
 }

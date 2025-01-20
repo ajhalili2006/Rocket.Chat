@@ -1,3 +1,6 @@
+import type { IAuthorizeRequestVariables } from '../../definition/IAuthorizeRequestVariables';
+import type { ISAMLRequest } from '../../definition/ISAMLRequest';
+import type { IServiceProviderOptions } from '../../definition/IServiceProviderOptions';
 import { SAMLUtils } from '../Utils';
 import {
 	defaultIdentifierFormat,
@@ -6,16 +9,13 @@ import {
 	defaultNameIDTemplate,
 	defaultAuthnContextTemplate,
 } from '../constants';
-import type { IServiceProviderOptions } from '../../definition/IServiceProviderOptions';
-import type { ISAMLRequest } from '../../definition/ISAMLRequest';
-import type { IAuthorizeRequestVariables } from '../../definition/IAuthorizeRequestVariables';
 
 /*
 	An Authorize Request is used to show the Identity Provider login form when the user clicks on the Rocket.Chat SAML login button
 */
 export class AuthorizeRequest {
-	public static generate(serviceProviderOptions: IServiceProviderOptions): ISAMLRequest {
-		const data = this.getDataForNewRequest(serviceProviderOptions);
+	public static generate(serviceProviderOptions: IServiceProviderOptions, credentialToken: string): ISAMLRequest {
+		const data = this.getDataForNewRequest(serviceProviderOptions, credentialToken);
 		const request = SAMLUtils.fillTemplateData(this.authorizeRequestTemplate(serviceProviderOptions), data);
 
 		return {
@@ -53,14 +53,12 @@ export class AuthorizeRequest {
 		return serviceProviderOptions.authnContextTemplate || defaultAuthnContextTemplate;
 	}
 
-	private static getDataForNewRequest(serviceProviderOptions: IServiceProviderOptions): IAuthorizeRequestVariables {
-		let id = `_${SAMLUtils.generateUniqueID()}`;
+	private static getDataForNewRequest(
+		serviceProviderOptions: IServiceProviderOptions,
+		credentialToken?: string,
+	): IAuthorizeRequestVariables {
+		const id = credentialToken || `_${SAMLUtils.generateUniqueID()}`;
 		const instant = SAMLUtils.generateInstant();
-
-		// Post-auth destination
-		if (serviceProviderOptions.id) {
-			id = serviceProviderOptions.id;
-		}
 
 		return {
 			newId: id,

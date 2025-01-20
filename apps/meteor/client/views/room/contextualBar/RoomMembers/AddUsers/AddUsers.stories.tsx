@@ -1,8 +1,7 @@
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
 
-import VerticalBar from '../../../../../components/VerticalBar';
 import AddUsers from './AddUsers';
+import { Contextualbar } from '../../../../../components/Contextualbar';
 
 export default {
 	title: 'Room/Contextual Bar/RoomMembers/AddUsers',
@@ -11,11 +10,8 @@ export default {
 		layout: 'fullscreen',
 		actions: { argTypesRegex: '^on.*' },
 	},
-	decorators: [(fn) => <VerticalBar height='100vh'>{fn()}</VerticalBar>],
-} as ComponentMeta<typeof AddUsers>;
+	decorators: [(fn) => <Contextualbar height='100vh'>{fn()}</Contextualbar>],
+} satisfies Meta<typeof AddUsers>;
 
-export const Default: ComponentStory<typeof AddUsers> = (args) => <AddUsers {...args} />;
+export const Default: StoryFn<typeof AddUsers> = (args) => <AddUsers {...args} />;
 Default.storyName = 'AddUsers';
-Default.args = {
-	users: ['rocket.cat'],
-};

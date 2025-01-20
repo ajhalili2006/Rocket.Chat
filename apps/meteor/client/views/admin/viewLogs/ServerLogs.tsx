@@ -1,8 +1,9 @@
 import type { Serialized } from '@rocket.chat/core-typings';
 import { Box, Icon, Scrollable } from '@rocket.chat/fuselage';
-import { useToastMessageDispatch, useEndpoint, useStream, useTranslation } from '@rocket.chat/ui-contexts';
+import { useToastMessageDispatch, useEndpoint, useStream } from '@rocket.chat/ui-contexts';
 import type { ReactElement } from 'react';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { ansispan } from './ansispan';
 
@@ -48,14 +49,14 @@ const ServerLogs = (): ReactElement => {
 		[subscribeToStdout],
 	);
 
-	const t = useTranslation();
+	const { t } = useTranslation();
 
 	const wrapperRef = useRef<HTMLElement>();
 	const atBottomRef = useRef<boolean>(false);
 
 	const [newLogsVisible, setNewLogsVisible] = useState(false);
 
-	const isAtBottom = useCallback((scrollThreshold = 0) => {
+	const isAtBottom = useCallback<(scrollThreshold?: number) => boolean>((scrollThreshold = 0) => {
 		const wrapper = wrapperRef.current;
 
 		if (!wrapper) {
@@ -166,22 +167,23 @@ const ServerLogs = (): ReactElement => {
 	}, [sendToBottomIfNecessary]);
 
 	return (
-		<Box width='full' height='full' overflow='hidden' position='relative' display='flex' marginBlock='x8'>
+		<Box width='full' height='full' overflow='hidden' position='relative' display='flex' mbe={8}>
 			<Scrollable vertical>
 				<Box
 					ref={wrapperRef}
 					display='flex'
 					flexDirection='column'
-					padding='x8'
+					padding={8}
 					flexGrow={1}
 					fontFamily='mono'
-					color='alternative'
-					backgroundColor='neutral-800'
+					color='default'
+					bg='neutral'
 					style={{ wordBreak: 'break-all' }}
 					onWheel={handleWheel}
 					onTouchStart={handleTouchStart}
 					onTouchEnd={handleTouchEnd}
 					onScroll={handleScroll}
+					borderRadius='x4'
 				>
 					{entries.sort(compareEntries).map(({ string }, i) => (
 						<span key={i} dangerouslySetInnerHTML={{ __html: ansispan(string) }} />
@@ -189,17 +191,21 @@ const ServerLogs = (): ReactElement => {
 				</Box>
 			</Scrollable>
 			<Box
+				role='button'
 				position='absolute'
-				insetBlockEnd='x8'
+				display='flex'
+				justifyContent='center'
+				insetBlockEnd={8}
 				insetInlineStart='50%'
 				width='x132'
 				height='x32'
 				marginInline='neg-x64'
-				paddingBlock='x8'
-				fontScale='c1'
+				paddingBlock={8}
+				fontScale='c2'
 				borderRadius='full'
-				color='primary-500'
-				backgroundColor='surface'
+				elevation='1'
+				color='default'
+				bg='light'
 				onClick={handleClick}
 				textAlign='center'
 				style={{

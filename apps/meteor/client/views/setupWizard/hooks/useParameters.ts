@@ -6,17 +6,17 @@ import { useQuery } from '@tanstack/react-query';
 type SetupWizardParameters = {
 	settings: ISetting[];
 	serverAlreadyRegistered: boolean;
-	hasAdmin: boolean;
 };
 
 export const useParameters = (): Exclude<UseQueryResult<SetupWizardParameters, Error>, { data: undefined }> => {
 	const getSetupWizardParameters = useMethod('getSetupWizardParameters');
 
-	return useQuery(['setupWizard/parameters'], getSetupWizardParameters, {
+	return useQuery({
+		queryKey: ['setupWizard/parameters'],
+		queryFn: getSetupWizardParameters,
 		initialData: {
 			settings: [],
 			serverAlreadyRegistered: false,
-			hasAdmin: false,
 		},
 	}) as Exclude<UseQueryResult<SetupWizardParameters, Error>, { data: undefined }>;
 };

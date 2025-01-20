@@ -1,6 +1,6 @@
+import type { ISetting, SettingValue } from '@rocket.chat/core-typings';
 import { Emitter } from '@rocket.chat/emitter';
 import _ from 'underscore';
-import type { ISetting, SettingValue } from '@rocket.chat/core-typings';
 
 import { SystemLogger } from '../../../server/lib/logger/system';
 
@@ -333,7 +333,7 @@ export class CachedSettings
 	}
 
 	public getConfig = (config?: OverCustomSettingsConfig): SettingsConfig => ({
-		debounce: 500,
+		debounce: process.env.TEST_MODE ? 0 : 500,
 		...config,
 	});
 

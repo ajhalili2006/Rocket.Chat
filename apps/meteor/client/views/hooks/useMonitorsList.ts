@@ -28,20 +28,20 @@ export const useMonitorsList = (
 	}, [options, reload]);
 
 	const fetchData = useCallback(
-		async (start, end) => {
+		async (start: number, end: number) => {
 			const { monitors, total } = await getMonitors({
 				text: options.filter,
 				offset: start,
 				count: end + start,
+				sort: JSON.stringify({ username: 1 }),
 			});
 
 			return {
-				items: monitors.map((members: any) => {
-					members._updatedAt = new Date(members._updatedAt);
-					members.label = members.username;
-					members.value = { value: members._id, label: members.username };
-					return members;
-				}),
+				items: monitors.map((members: any) => ({
+					...members,
+					label: members.username,
+					value: members._id,
+				})),
 				itemCount: total,
 			};
 		},

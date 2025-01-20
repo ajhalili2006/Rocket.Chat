@@ -2,9 +2,8 @@
 import { Message, Avatar } from '@rocket.chat/fuselage';
 import type * as UiKit from '@rocket.chat/ui-kit';
 import { action } from '@storybook/addon-actions';
-import React from 'react';
 
-import { kitContext, UiKitMessage } from '..';
+import { UiKitContext, UiKitMessage } from '..';
 import * as payloads from './payloads';
 
 export default {
@@ -36,7 +35,7 @@ const createStory = (blocks: readonly UiKit.LayoutBlock[]) => {
               6hY+0yM88TzeNZY4luYwpVYyduOfrvhPTnr0pXSX9y5mCsyJMdyxxvwq599em+taItqCSNc90ChvZRUruUcT0JiO18Elpk7t8v41LWzacxkB
               SuvjQ/FFJayjDWrCTepAQ2vUH0oo/Jk3ovpwJJeVCP5CN+lFFaaMqy+nAyuChvrTI2kN9JAsi2ZOy4IBHMnkSCP+iqBexSWdxLazoUljJVlP
               UH2oorkV10pRc7b1zXb/hZOzuJvM86QWEXeELxOzHSIPcmiiiunVlF2RNTpRkrs//Z'
-          size={'x36'}
+          size='x36'
         />
       </Message.LeftContainer>
       <Message.Container>
@@ -51,26 +50,25 @@ const createStory = (blocks: readonly UiKit.LayoutBlock[]) => {
           <Message.Timestamp>12:00 PM</Message.Timestamp>
         </Message.Header>
         <Message.Body>
-          <kitContext.Provider
+          <UiKitContext.Provider
             value={{
               action: action('action'),
-              state: action('state'),
+              updateState: action('updateState'),
               values: {},
-              appId: 'core',
               errors,
             }}
           >
             {UiKitMessage(blocks)}
-          </kitContext.Provider>
+          </UiKitContext.Provider>
         </Message.Body>
       </Message.Container>
-      <Message.Toolbox.Wrapper>
-        <Message.Toolbox>
-          <Message.Toolbox.Item icon='quote' />
-          <Message.Toolbox.Item icon='clock' />
-          <Message.Toolbox.Item icon='thread' />
-        </Message.Toolbox>
-      </Message.Toolbox.Wrapper>
+      <Message.Toolbar.Wrapper>
+        <Message.Toolbar>
+          <Message.Toolbar.Item icon='quote' />
+          <Message.Toolbar.Item icon='clock' />
+          <Message.Toolbar.Item icon='thread' />
+        </Message.Toolbar>
+      </Message.Toolbar.Wrapper>
     </Message>
   );
   story.args = {
@@ -87,23 +85,23 @@ export const SectionWithPlainText = createStory(payloads.sectionWithPlainText);
 export const SectionWithMrkdwn = createStory(payloads.sectionWithMrkdwn);
 
 export const SectionWithTextFields = createStory(
-  payloads.sectionWithTextFields
+  payloads.sectionWithTextFields,
 );
 
 export const SectionWithButtonAccessory = createStory(
-  payloads.sectionWithButtonAccessory
+  payloads.sectionWithButtonAccessory,
 );
 
 export const SectionWithImageAccessory = createStory(
-  payloads.sectionWithImageAccessory
+  payloads.sectionWithImageAccessory,
 );
 
 export const SectionWithOverflowMenuAccessory = createStory(
-  payloads.sectionWithOverflowMenuAccessory
+  payloads.sectionWithOverflowMenuAccessory,
 );
 
 export const SectionWithDatePickerAccessory = createStory(
-  payloads.sectionWithDatePickerAccessory
+  payloads.sectionWithDatePickerAccessory,
 );
 
 export const ImageWithTitle = createStory(payloads.imageWithTitle);
@@ -111,25 +109,25 @@ export const ImageWithTitle = createStory(payloads.imageWithTitle);
 export const ImageWithoutTitle = createStory(payloads.imageWithoutTitle);
 
 export const ActionsWithAllSelects = createStory(
-  payloads.actionsWithAllSelects
+  payloads.actionsWithAllSelects,
 );
 
 export const ActionsWithFilteredConversationsSelect = createStory(
-  payloads.actionsWithFilteredConversationsSelect
+  payloads.actionsWithFilteredConversationsSelect,
 );
 
 export const ActionsWithInitializedSelects = createStory(
-  payloads.actionsWithInitializedSelects
+  payloads.actionsWithInitializedSelects,
 );
 
 export const ActionsWithButton = createStory(payloads.actionsWithButton);
 
 export const ActionsWithButtonAsLink = createStory(
-  payloads.actionsWithButtonAsLink
+  payloads.actionsWithButtonAsLink,
 );
 
 export const ActionsWithDatePicker = createStory(
-  payloads.actionsWithDatePicker
+  payloads.actionsWithDatePicker,
 );
 
 export const ContextWithPlainText = createStory(payloads.contextWithPlainText);
@@ -137,12 +135,12 @@ export const ContextWithPlainText = createStory(payloads.contextWithPlainText);
 export const ContextWithMrkdwn = createStory(payloads.contextWithMrkdwn);
 
 export const ContextWithTextAndImages = createStory(
-  payloads.contextWithTextAndImages
+  payloads.contextWithTextAndImages,
 );
 
 export const Conditional = createStory(payloads.conditional);
 
 export const Preview = createStory(payloads.preview);
 export const PreviewWithExternalUrl = createStory(
-  payloads.previewWithExternalUrl
+  payloads.previewWithExternalUrl,
 );

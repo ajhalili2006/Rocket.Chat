@@ -1,10 +1,19 @@
-import { Meteor } from 'meteor/meteor';
+import type { ServerMethods } from '@rocket.chat/ddp-client';
 import { Permissions } from '@rocket.chat/models';
+import { Meteor } from 'meteor/meteor';
 
-import { hasPermission } from '../functions/hasPermission';
+import { notifyOnPermissionChangedById } from '../../../lib/server/lib/notifyListener';
 import { CONSTANTS, AuthorizationUtils } from '../../lib';
+import { hasPermissionAsync } from '../functions/hasPermission';
 
-Meteor.methods({
+declare module '@rocket.chat/ddp-client' {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	interface ServerMethods {
+		'authorization:addPermissionToRole'(permissionId: string, role: string): void;
+	}
+}
+
+Meteor.methods<ServerMethods>({
 	async 'authorization:addPermissionToRole'(permissionId, role) {
 		if (AuthorizationUtils.isPermissionRestrictedForRole(permissionId, role)) {
 			throw new Meteor.Error('error-action-not-allowed', 'Permission is restricted', {
@@ -25,19 +34,23 @@ Meteor.methods({
 
 		if (
 			!uid ||
-			!hasPermission(uid, 'access-permissions') ||
-			(permission.level === CONSTANTS.SETTINGS_LEVEL && !hasPermission(uid, 'access-setting-permissions'))
+			!(await hasPermissionAsync(uid, 'access-permissions')) ||
+			(permission.level === CONSTANTS.SETTINGS_LEVEL && !(await hasPermissionAsync(uid, 'access-setting-permissions')))
 		) {
 			throw new Meteor.Error('error-action-not-allowed', 'Adding permission is not allowed', {
 				method: 'authorization:addPermissionToRole',
 				action: 'Adding_permission',
 			});
 		}
+
 		// for setting-based-permissions, authorize the group access as well
 		if (permission.groupPermissionId) {
-			Permissions.addRole(permission.groupPermissionId, role);
+			await Permissions.addRole(permission.groupPermissionId, role);
+			void notifyOnPermissionChangedById(permission.groupPermissionId);
 		}
 
-		return Permissions.addRole(permission._id, role);
+		await Permissions.addRole(permission._id, role);
+
+		void notifyOnPermissionChangedById(permission._id);
 	},
 });

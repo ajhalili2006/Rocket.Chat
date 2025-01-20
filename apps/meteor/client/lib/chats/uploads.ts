@@ -1,9 +1,9 @@
-import type { IMessage, IRoom } from '@rocket.chat/core-typings';
+import type { IMessage, IRoom, IE2EEMessage, IUpload } from '@rocket.chat/core-typings';
 import { Emitter } from '@rocket.chat/emitter';
+import { Random } from '@rocket.chat/random';
 
 import { UserAction, USER_ACTIVITIES } from '../../../app/ui/client/lib/UserAction';
-import { APIClient } from '../../../app/utils/client';
-import { getRandomId } from '../../../lib/random';
+import { sdk } from '../../../app/utils/client/lib/SDKClient';
 import { getErrorMessage } from '../errorHandling';
 import type { UploadsAPI } from './ChatAPI';
 import type { Upload } from './Upload';
@@ -36,33 +36,37 @@ const send = async (
 		msg,
 		rid,
 		tmid,
+		t,
 	}: {
 		description?: string;
 		msg?: string;
 		rid: string;
 		tmid?: string;
+		t?: IMessage['t'];
 	},
+	getContent?: (fileId: string, fileUrl: string) => Promise<IE2EEMessage['content']>,
+	fileContent?: { raw: Partial<IUpload>; encrypted: IE2EEMessage['content'] },
 ): Promise<void> => {
-	const id = getRandomId();
+	const id = Random.id();
 
 	updateUploads((uploads) => [
 		...uploads,
 		{
 			id,
-			name: file.name,
+			name: fileContent?.raw.name || file.name,
 			percentage: 0,
 		},
 	]);
 
 	try {
 		await new Promise((resolve, reject) => {
-			const xhr = APIClient.upload(
-				`/v1/rooms.upload/${rid}`,
+			const xhr = sdk.rest.upload(
+				`/v1/rooms.media/${rid}`,
 				{
-					msg,
-					tmid,
 					file,
-					description,
+					...(fileContent && {
+						content: JSON.stringify(fileContent.encrypted),
+					}),
 				},
 				{
 					load: (event) => {
@@ -109,6 +113,24 @@ const send = async (
 				},
 			);
 
+			xhr.onload = async () => {
+				if (xhr.readyState === xhr.DONE && xhr.status === 200) {
+					const result = JSON.parse(xhr.responseText);
+					let content;
+					if (getContent) {
+						content = await getContent(result.file._id, result.file.url);
+					}
+
+					await sdk.rest.post(`/v1/rooms.mediaConfirm/${rid}/${result.file._id}`, {
+						msg,
+						tmid,
+						description,
+						t,
+						content,
+					});
+				}
+			};
+
 			if (uploads.length) {
 				UserAction.performContinuously(rid, USER_ACTIVITIES.USER_UPLOADING, { tmid });
 			}
@@ -146,6 +168,10 @@ export const createUploadsAPI = ({ rid, tmid }: { rid: IRoom['_id']; tmid?: IMes
 	subscribe,
 	wipeFailedOnes,
 	cancel,
-	send: (file: File, { description, msg }: { description?: string; msg?: string }): Promise<void> =>
-		send(file, { description, msg, rid, tmid }),
+	send: (
+		file: File,
+		{ description, msg, t }: { description?: string; msg?: string; t?: IMessage['t'] },
+		getContent?: (fileId: string, fileUrl: string) => Promise<IE2EEMessage['content']>,
+		fileContent?: { raw: Partial<IUpload>; encrypted: IE2EEMessage['content'] },
+	): Promise<void> => send(file, { description, msg, rid, tmid, t }, getContent, fileContent),
 });

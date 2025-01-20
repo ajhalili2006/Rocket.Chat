@@ -1,16 +1,18 @@
+import type { IMessage } from '@rocket.chat/core-typings';
+import type { ServerMethods } from '@rocket.chat/ddp-client';
 import { Meteor } from 'meteor/meteor';
 
-import { Rooms } from '../../../models/server';
-import { TranslationProviderRegistry } from '..';
+import { translateMessage } from '../functions/translateMessage';
 
-Meteor.methods({
-	'autoTranslate.translateMessage'(message, targetLanguage) {
-		if (!TranslationProviderRegistry.enabled) {
-			return;
-		}
-		const room = Rooms.findOneById(message?.rid);
-		if (message && room) {
-			TranslationProviderRegistry.translateMessage(message, room, targetLanguage);
-		}
+declare module '@rocket.chat/ddp-client' {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	interface ServerMethods {
+		'autoTranslate.translateMessage'(message: IMessage | undefined, targetLanguage: string): Promise<void>;
+	}
+}
+
+Meteor.methods<ServerMethods>({
+	async 'autoTranslate.translateMessage'(message, targetLanguage) {
+		return translateMessage(targetLanguage, message);
 	},
 });

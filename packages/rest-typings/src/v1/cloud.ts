@@ -53,14 +53,10 @@ const CloudConfirmationPollSchema = {
 	properties: {
 		deviceCode: {
 			type: 'string',
-		},
-		resend: {
-			type: 'string',
-			nullable: true,
+			minLength: 1,
 		},
 	},
 	required: ['deviceCode'],
-	optionalProperties: ['resend'],
 	additionalProperties: false,
 };
 
@@ -75,6 +71,11 @@ export type CloudEndpoints = {
 			intentData: CloudRegistrationIntentData;
 		};
 	};
+	'/v1/cloud.registerPreIntent': {
+		POST: () => {
+			offline: boolean;
+		};
+	};
 	'/v1/cloud.confirmationPoll': {
 		GET: (params: CloudConfirmationPoll) => {
 			pollData: CloudConfirmationPollData;
@@ -82,5 +83,11 @@ export type CloudEndpoints = {
 	};
 	'/v1/cloud.registrationStatus': {
 		GET: () => { registrationStatus: CloudRegistrationStatus };
+	};
+	'/v1/cloud.syncWorkspace': {
+		POST: () => { success: boolean };
+	};
+	'/v1/cloud.removeLicense': {
+		POST: () => { success: boolean };
 	};
 };

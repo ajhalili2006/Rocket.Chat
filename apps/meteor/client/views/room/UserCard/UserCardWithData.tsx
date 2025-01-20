@@ -1,108 +1,116 @@
 import type { IRoom } from '@rocket.chat/core-typings';
-import { PositionAnimated, AnimatedVisibility, Menu, Option } from '@rocket.chat/fuselage';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+import { GenericMenu } from '@rocket.chat/ui-client';
 import { useSetting, useRolesDescription } from '@rocket.chat/ui-contexts';
 import type { ReactElement } from 'react';
-import React, { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { Backdrop } from '../../../components/Backdrop';
+import { getUserDisplayName } from '../../../../lib/getUserDisplayName';
 import LocalTime from '../../../components/LocalTime';
-import UserCard from '../../../components/UserCard';
+import { UserCard, UserCardAction, UserCardRole, UserCardSkeleton } from '../../../components/UserCard';
 import { ReactiveUserStatus } from '../../../components/UserStatus';
-import { AsyncStatePhase } from '../../../hooks/useAsyncState';
-import { useEndpointData } from '../../../hooks/useEndpointData';
-import { useActionSpread } from '../../hooks/useActionSpread';
+import { useUserInfoQuery } from '../../../hooks/useUserInfoQuery';
+import { useMemberExists } from '../../hooks/useMemberExists';
 import { useUserInfoActions } from '../hooks/useUserInfoActions';
+import type { UserInfoAction } from '../hooks/useUserInfoActions/useUserInfoActions';
 
 type UserCardWithDataProps = {
 	username: string;
-	onClose: () => void;
-	target: Element;
-	open: (e: Event) => void;
 	rid: IRoom['_id'];
+	onOpenUserInfo: () => void;
+	onClose: () => void;
 };
 
-const UserCardWithData = ({ username, onClose, target, open, rid }: UserCardWithDataProps): ReactElement => {
-	const ref = useRef(target);
+const UserCardWithData = ({ username, rid, onOpenUserInfo, onClose }: UserCardWithDataProps) => {
+	const { t } = useTranslation();
 	const getRoles = useRolesDescription();
-	const showRealNames = useSetting('UI_Use_Real_Name');
+	const showRealNames = useSetting('UI_Use_Real_Name', false);
 
-	const query = useMemo(() => ({ username }), [username]);
-	const { value: data, phase: state } = useEndpointData('/v1/users.info', query);
+	const { data, isLoading: isUserInfoLoading } = useUserInfoQuery({ username });
+	const {
+		data: isMemberData,
+		refetch,
+		isSuccess: membershipCheckSuccess,
+		isLoading: isMembershipStatusLoading,
+	} = useMemberExists({ roomId: rid, username });
 
-	ref.current = target;
-
-	const isLoading = state === AsyncStatePhase.LOADING;
+	const isLoading = isUserInfoLoading || isMembershipStatusLoading;
+	const isMember = membershipCheckSuccess && isMemberData?.isMember;
 
 	const user = useMemo(() => {
 		const defaultValue = isLoading ? undefined : null;
 
 		const {
 			_id,
-			name = username,
+			name,
 			roles = defaultValue,
 			statusText = defaultValue,
 			bio = defaultValue,
 			utcOffset = defaultValue,
 			nickname,
 			avatarETag,
+			freeSwitchExtension,
 		} = data?.user || {};
 
 		return {
 			_id,
-			name: showRealNames ? name : username,
+			name: getUserDisplayName(name, username, showRealNames),
 			username,
-			roles: roles && getRoles(roles).map((role, index) => <UserCard.Role key={index}>{role}</UserCard.Role>),
+			roles: roles && getRoles(roles).map((role, index) => <UserCardRole key={index}>{role}</UserCardRole>),
 			bio,
 			etag: avatarETag,
 			localTime: utcOffset && Number.isInteger(utcOffset) && <LocalTime utcOffset={utcOffset} />,
 			status: _id && <ReactiveUserStatus uid={_id} />,
 			customStatus: statusText,
 			nickname,
+			freeSwitchExtension,
 		};
 	}, [data, username, showRealNames, isLoading, getRoles]);
 
-	const handleOpen = useMutableCallback((e) => {
-		open?.(e);
-		onClose?.();
+	const handleOpenUserInfo = useEffectEvent(() => {
+		onOpenUserInfo();
+		onClose();
 	});
 
-	const userActions = useUserInfoActions({ _id: user._id ?? '', username: user.username }, rid);
-	const { actions: actionsDefinition, menu: menuOptions } = useActionSpread(userActions);
+	const { actions: actionsDefinition, menuActions: menuOptions } = useUserInfoActions({
+		rid,
+		user: { _id: user._id ?? '', username: user.username, name: user.name, freeSwitchExtension: user.freeSwitchExtension },
+		size: 3,
+		isMember,
+		reload: refetch,
+	});
 
 	const menu = useMemo(() => {
-		if (!menuOptions) {
+		if (!menuOptions?.length) {
 			return null;
 		}
 
 		return (
-			<Menu
-				flexShrink={0}
-				maxHeight='initial'
-				mi='x2'
+			<GenericMenu
+				title={t('More')}
 				key='menu'
-				renderItem={({ label: { label, icon }, ...props }): ReactElement => <Option {...props} label={label} icon={icon} />}
-				options={menuOptions}
+				data-qa-id='menu'
+				sections={menuOptions}
+				placement='bottom-start'
+				callbackAction={onClose}
 			/>
 		);
-	}, [menuOptions]);
+	}, [menuOptions, onClose, t]);
 
 	const actions = useMemo(() => {
-		const mapAction = ([key, { label, icon, action }]: any): ReactElement => (
-			<UserCard.Action key={key} label={label} aria-label={label} onClick={action} icon={icon} />
+		const mapAction = ([key, { content, title, icon, onClick }]: [string, UserInfoAction]): ReactElement => (
+			<UserCardAction key={key} label={content || title} aria-label={content || title} onClick={onClick} icon={icon!} />
 		);
 
 		return [...actionsDefinition.map(mapAction), menu].filter(Boolean);
 	}, [actionsDefinition, menu]);
 
-	return (
-		<>
-			<Backdrop bg='transparent' onClick={onClose} />
-			<PositionAnimated anchor={ref} placement='top-start' margin={8} visible={AnimatedVisibility.UNHIDING}>
-				<UserCard {...user} onClose={onClose} open={handleOpen} actions={actions} isLoading={isLoading} />
-			</PositionAnimated>
-		</>
-	);
+	if (isLoading) {
+		return <UserCardSkeleton />;
+	}
+
+	return <UserCard user={user} onClose={onClose} onOpenUserInfo={handleOpenUserInfo} actions={actions} />;
 };
 
 export default UserCardWithData;

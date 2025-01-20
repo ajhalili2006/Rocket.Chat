@@ -1,4 +1,3 @@
-import { stringify } from 'query-string';
 import type { Serialized } from '@rocket.chat/core-typings';
 import type {
 	MatchPathPattern,
@@ -8,10 +7,13 @@ import type {
 	PathWithoutParamsFor,
 	PathWithParamsFor,
 } from '@rocket.chat/rest-typings';
+import { stringify } from 'query-string';
 
+import type { Credentials } from './Credentials';
 import type { Middleware, RestClientInterface } from './RestClientInterface';
+import { hasRequiredTwoFactorMethod, isTotpInvalidError, isTotpRequiredError } from './errors';
 
-export { RestClientInterface };
+export { RestClientInterface, Credentials };
 
 const pipe =
 	<T extends (...args: any[]) => any>(fn: T) =>
@@ -49,29 +51,19 @@ const checkIfIsFormData = (data: any = {}): boolean => {
 };
 
 export class RestClient implements RestClientInterface {
+	private twoFactorHandler?: (args: {
+		method: 'totp' | 'email' | 'password';
+		emailOrUsername?: string;
+		invalidAttempt?: boolean;
+	}) => Promise<string>;
+
 	private readonly baseUrl: string;
 
 	private headers: Record<string, string> = {};
 
-	private credentials:
-		| {
-				'X-User-Id': string;
-				'X-Auth-Token': string;
-		  }
-		| undefined;
+	private credentials: Credentials | undefined;
 
-	constructor({
-		baseUrl,
-		credentials,
-		headers = {},
-	}: {
-		baseUrl: string;
-		credentials?: {
-			'X-User-Id': string;
-			'X-Auth-Token': string;
-		};
-		headers?: Record<string, string>;
-	}) {
+	constructor({ baseUrl, credentials, headers = {} }: { baseUrl: string; credentials?: Credentials; headers?: Record<string, string> }) {
 		this.baseUrl = `${baseUrl}/api`;
 		this.setCredentials(credentials);
 		this.headers = headers;
@@ -209,7 +201,7 @@ export class RestClient implements RestClientInterface {
 			? {
 					'X-User-Id': credentials['X-User-Id'],
 					'X-Auth-Token': credentials['X-Auth-Token'],
-			  }
+				}
 			: {};
 	}
 
@@ -218,11 +210,41 @@ export class RestClient implements RestClientInterface {
 			...options,
 			headers: { ...this.getCredentialsAsHeaders(), ...this.headers, ...headers },
 			method,
-		}).then(function (response) {
-			if (!response.ok) {
+		}).then(async (response) => {
+			if (response.ok) {
+				return response;
+			}
+
+			if (response.status !== 400) {
 				return Promise.reject(response);
 			}
-			return response;
+
+			const clone = response.clone();
+
+			const error = await clone.json();
+
+			if ((isTotpRequiredError(error) || isTotpInvalidError(error)) && hasRequiredTwoFactorMethod(error) && this.twoFactorHandler) {
+				const method2fa = 'details' in error ? error.details.method : 'password';
+
+				const code = await this.twoFactorHandler({
+					method: method2fa,
+					emailOrUsername: error.details.emailOrUsername,
+					invalidAttempt: isTotpInvalidError(error),
+				});
+
+				return this.send(endpoint, method, {
+					...options,
+					headers: {
+						...this.getCredentialsAsHeaders(),
+						...this.headers,
+						...headers,
+						'x-2fa-code': code,
+						'x-2fa-method': method2fa,
+					},
+				});
+			}
+
+			return Promise.reject(response);
 		});
 	}
 
@@ -230,7 +252,7 @@ export class RestClient implements RestClientInterface {
 		return data ? stringify(data, { arrayFormat: 'bracket' }) : '';
 	}
 
-	upload: RestClientInterface['upload'] = (endpoint, params, events) => {
+	upload: RestClientInterface['upload'] = (endpoint, params, events, options = {}) => {
 		if (!params) {
 			throw new Error('Missing params');
 		}
@@ -246,7 +268,7 @@ export class RestClient implements RestClientInterface {
 		});
 
 		xhr.open('POST', `${this.baseUrl}${`/${endpoint}`.replace(/\/+/, '/')}`, true);
-		Object.entries(this.getCredentialsAsHeaders()).forEach(([key, value]) => {
+		Object.entries({ ...this.getCredentialsAsHeaders(), ...options.headers }).forEach(([key, value]) => {
 			xhr.setRequestHeader(key, value);
 		});
 
@@ -273,5 +295,11 @@ export class RestClient implements RestClientInterface {
 		this.send = function (this: RestClient, ...context: Parameters<RestClientInterface['send']>): ReturnType<RestClientInterface['send']> {
 			return middleware(context, pipe(fn));
 		} as RestClientInterface['send'];
+	}
+
+	handleTwoFactorChallenge(
+		cb: (args: { method: 'totp' | 'email' | 'password'; emailOrUsername?: string; invalidAttempt?: boolean }) => Promise<string>,
+	): void {
+		this.twoFactorHandler = cb;
 	}
 }

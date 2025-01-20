@@ -1,49 +1,69 @@
 import type { IRoom, IUser } from '@rocket.chat/core-typings';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
-import { escapeHTML } from '@rocket.chat/string-helpers';
-import { useTranslation, usePermission, useUserRoom } from '@rocket.chat/ui-contexts';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+import {
+	useTranslation,
+	usePermission,
+	useUserRoom,
+	useUserSubscription,
+	useEndpoint,
+	useToastMessageDispatch,
+} from '@rocket.chat/ui-contexts';
+import { useMutation } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { useEndpointActionExperimental } from '../../../../../hooks/useEndpointActionExperimental';
-import { roomCoordinator } from '../../../../../lib/rooms/roomCoordinator';
-import type { Action } from '../../../../hooks/useActionSpread';
 import { getRoomDirectives } from '../../../lib/getRoomDirectives';
 import { useUserHasRoomRole } from '../../useUserHasRoomRole';
+import type { UserInfoAction, UserInfoActionType } from '../useUserInfoActions';
 
-// TODO: Remove endpoint concatenation
-export const useChangeLeaderAction = (user: Pick<IUser, '_id' | 'username'>, rid: IRoom['_id']): Action | undefined => {
+const getEndpoint = (roomType: string, isLeader: boolean) => {
+	if (roomType === 'p') {
+		return isLeader ? '/v1/groups.removeLeader' : '/v1/groups.addLeader';
+	}
+	return isLeader ? '/v1/channels.removeLeader' : '/v1/channels.addLeader';
+};
+
+export const useChangeLeaderAction = (user: Pick<IUser, '_id' | 'username'>, rid: IRoom['_id']): UserInfoAction | undefined => {
 	const t = useTranslation();
 	const room = useUserRoom(rid);
-	const { _id: uid } = user;
+	const { _id: uid, username } = user;
 	const userCanSetLeader = usePermission('set-leader', rid);
+	const userSubscription = useUserSubscription(rid);
+	const dispatchToastMessage = useToastMessageDispatch();
 
 	if (!room) {
 		throw Error('Room not provided');
 	}
 
-	const endpointPrefix = room.t === 'p' ? '/v1/groups' : '/v1/channels';
-	const { roomCanSetLeader } = getRoomDirectives(room);
+	const { roomCanSetLeader } = getRoomDirectives({ room, showingUserId: uid, userSubscription });
 	const isLeader = useUserHasRoomRole(uid, rid, 'leader');
-	const roomName = room?.t && escapeHTML(roomCoordinator.getRoomName(room.t, room));
 
-	const changeLeaderEndpoint = isLeader ? 'removeLeader' : 'addLeader';
-	const changeLeaderMessage = isLeader
-		? 'User__username__removed_from__room_name__leaders'
-		: 'User__username__is_now_a_leader_of__room_name_';
-	const changeLeader = useEndpointActionExperimental(
-		'POST',
-		`${endpointPrefix}.${changeLeaderEndpoint}`,
-		t(changeLeaderMessage, { username: user.username, room_name: roomName }),
-	);
-	const changeLeaderAction = useMutableCallback(() => changeLeader({ roomId: rid, userId: uid }));
+	const toggleLeaderEndpoint = useEndpoint('POST', getEndpoint(room.t, isLeader));
+
+	const toggleOwnerMutation = useMutation({
+		mutationFn: async ({ roomId, userId }: { roomId: string; userId: string }) => {
+			await toggleLeaderEndpoint({ roomId, userId });
+
+			return t(isLeader ? 'removed__username__as__role_' : 'set__username__as__role_', { username, role: 'leader' });
+		},
+		onSuccess: (message) => {
+			dispatchToastMessage({ type: 'success', message });
+		},
+		onError: (error) => {
+			dispatchToastMessage({ type: 'error', message: error });
+		},
+	});
+
+	const changeLeaderAction = useEffectEvent(async () => toggleOwnerMutation.mutateAsync({ roomId: rid, userId: uid }));
+
 	const changeLeaderOption = useMemo(
 		() =>
 			roomCanSetLeader && userCanSetLeader
 				? {
-						label: t(isLeader ? 'Remove_as_leader' : 'Set_as_leader'),
-						icon: 'shield-alt',
-						action: changeLeaderAction,
-				  }
+						content: t(isLeader ? 'Remove_as_leader' : 'Set_as_leader'),
+						icon: 'shield-alt' as const,
+						onClick: changeLeaderAction,
+						type: 'privileges' as UserInfoActionType,
+					}
 				: undefined,
 		[isLeader, roomCanSetLeader, t, userCanSetLeader, changeLeaderAction],
 	);

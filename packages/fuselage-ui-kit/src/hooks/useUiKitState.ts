@@ -1,11 +1,30 @@
-import { useMutableCallback, useSafely } from '@rocket.chat/fuselage-hooks';
+import { useEffectEvent, useSafely } from '@rocket.chat/fuselage-hooks';
 import * as UiKit from '@rocket.chat/ui-kit';
 import { useContext, useMemo, useState } from 'react';
 
-import { kitContext, useUiKitStateValue } from '../contexts/kitContext';
+import { UiKitContext } from '../contexts/UiKitContext';
+import { getInitialValue } from '../utils/getInitialValue';
+
+const getElementValueFromState = (
+  actionId: string,
+  values: Record<
+    string,
+    | {
+        value: unknown;
+      }
+    | undefined
+  >,
+  initialValue: string | number | string[] | undefined,
+) => {
+  return (
+    (values &&
+      (values[actionId]?.value as string | number | string[] | undefined)) ??
+    initialValue
+  );
+};
 
 type UiKitState<
-  TElement extends UiKit.ActionableElement = UiKit.ActionableElement
+  TElement extends UiKit.ActionableElement = UiKit.ActionableElement,
 > = {
   loading: boolean;
   setLoading: (loading: boolean) => void;
@@ -13,112 +32,135 @@ type UiKitState<
   value: UiKit.ActionOf<TElement>;
 };
 
-const hasInitialValue = <TElement extends UiKit.ActionableElement>(
-  element: TElement
-): element is TElement & { initialValue: number | string } =>
-  'initialValue' in element;
-
-const hasInitialOption = <TElement extends UiKit.ActionableElement>(
-  element: TElement
-): element is TElement & { initialOption: UiKit.Option } =>
-  'initialOption' in element;
-
-export const useUiKitState: <TElement extends UiKit.ActionableElement>(
+export const useUiKitState = <TElement extends UiKit.ActionableElement>(
   element: TElement,
-  context: UiKit.BlockContext
-) => [
+  context: UiKit.BlockContext,
+): [
   state: UiKitState<TElement>,
   action: (
     pseudoEvent?:
       | Event
       | { target: EventTarget }
-      | { target: { value: UiKit.ActionOf<TElement> } }
-  ) => void
-] = (rest, context) => {
-  const { blockId, actionId, appId, dispatchActionConfig } = rest;
+      | { target: { value: UiKit.ActionOf<TElement> } },
+  ) => Promise<void>,
+] => {
+  const { blockId, actionId, appId, dispatchActionConfig } = element;
   const {
     action,
-    appId: appIdFromContext,
-    viewId,
-    state,
-  } = useContext(kitContext);
+    appId: appIdFromContext = undefined,
+    viewId = undefined,
+    updateState,
+  } = useContext(UiKitContext);
 
-  const initialValue =
-    (hasInitialValue(rest) && rest.initialValue) ||
-    (hasInitialOption(rest) && rest.initialOption.value) ||
-    undefined;
+  const initialValue = getInitialValue(element);
 
-  const { value: _value, error } = useUiKitStateValue(actionId, initialValue);
+  const { values, errors } = useContext(UiKitContext);
+
+  const _value = getElementValueFromState(actionId, values, initialValue);
+  const error = Array.isArray(errors)
+    ? errors.find((error) =>
+        Object.keys(error).find((key) => key === actionId),
+      )?.[actionId]
+    : errors?.[actionId];
+
   const [value, setValue] = useSafely(useState(_value));
   const [loading, setLoading] = useSafely(useState(false));
 
-  const actionFunction = useMutableCallback(async (e) => {
+  const actionFunction = useEffectEvent(async (e: any) => {
+    // FIXME: fix typings
     const {
-      target: { value },
+      target: { value: elValue },
     } = e;
+
     setLoading(true);
-    setValue(value);
-    state && (await state({ blockId, appId, actionId, value, viewId }, e));
+
+    if (Array.isArray(value)) {
+      if (Array.isArray(elValue)) {
+        setValue(elValue);
+      } else {
+        const idx = value.findIndex((value) => value === elValue);
+
+        if (idx > -1) {
+          setValue(value.filter((_, i) => i !== idx));
+        } else {
+          setValue([...value, elValue]);
+        }
+      }
+    } else {
+      setValue(elValue);
+    }
+
+    await updateState?.(
+      { blockId, appId, actionId, value: elValue, viewId },
+      e,
+    );
     await action(
       {
         blockId,
-        appId: appId || appIdFromContext,
+        appId: appId || appIdFromContext || 'core',
         actionId,
-        value,
+        value: elValue,
         viewId,
       },
-      e
+      e,
     );
     setLoading(false);
   });
 
   // Used for triggering actions on text inputs. Removing the load state
   // makes the text input field remain focused after running the action
-  const noLoadStateActionFunction = useMutableCallback(async (e) => {
+  const noLoadStateActionFunction = useEffectEvent(async (e: any) => {
+    // FIXME: fix typings
     const {
       target: { value },
     } = e;
     setValue(value);
-    state && (await state({ blockId, appId, actionId, value, viewId }, e));
+
+    updateState &&
+      (await updateState({ blockId, appId, actionId, value, viewId }, e));
+
     await action(
       {
         blockId,
-        appId: appId || appIdFromContext,
+        appId: appId || appIdFromContext || 'core',
         actionId,
         value,
         viewId,
         dispatchActionConfig,
       },
-      e
+      e,
     );
   });
 
-  const stateFunction = useMutableCallback(async (e) => {
+  const stateFunction = useEffectEvent(async (e: any) => {
+    // FIXME: fix typings
     const {
       target: { value },
     } = e;
+
     setValue(value);
-    await state(
+
+    await updateState?.(
       {
         blockId,
-        appId: appId || appIdFromContext,
+        appId: appId || appIdFromContext || 'core',
         actionId,
         value,
         viewId,
       },
-      e
+      e,
     );
   });
 
   const result: UiKitState = useMemo(
     () => ({ loading, setLoading, error, value }),
-    [loading, setLoading, error, value]
+    [loading, setLoading, error, value],
   );
 
   if (
-    rest.type === 'plain_text_input' &&
-    Array.isArray(rest?.dispatchActionConfig) &&
-    rest.dispatchActionConfig.includes('on_character_entered')
+    element.type === 'plain_text_input' &&
+    Array.isArray(element?.dispatchActionConfig) &&
+    element.dispatchActionConfig.includes('on_character_entered')
   ) {
     return [result, noLoadStateActionFunction];
   }
@@ -126,10 +168,10 @@ export const useUiKitState: <TElement extends UiKit.ActionableElement>(
   if (
     (context &&
       [UiKit.BlockContext.SECTION, UiKit.BlockContext.ACTION].includes(
-        context
+        context,
       )) ||
-    (Array.isArray(rest?.dispatchActionConfig) &&
-      rest.dispatchActionConfig.includes('on_item_selected'))
+    (Array.isArray(element?.dispatchActionConfig) &&
+      element.dispatchActionConfig.includes('on_item_selected'))
   ) {
     return [result, actionFunction];
   }

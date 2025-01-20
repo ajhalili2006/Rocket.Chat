@@ -87,12 +87,8 @@ audio,
 video {
 	margin: 0;
 	padding: 0;
-
 	vertical-align: baseline;
-
 	border: 0 solid;
-
-	font-size: 100%;
 
 	&::after,
 	&::before {
@@ -136,10 +132,5 @@ q::after {
 
 table {
 	border-spacing: 0;
-
 	border-collapse: collapse;
-}
-
-a {
-	color: var(--rc-color-button-primary);
 }

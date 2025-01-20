@@ -1,12 +1,12 @@
 import crypto from 'crypto';
 
-import parseRequest from 'parseurl';
 import type { NextHandleFunction } from 'connect';
-import { WebApp } from 'meteor/webapp';
-import { ReactiveDict } from 'meteor/reactive-dict';
 import { Inject } from 'meteor/meteorhacks:inject-initial';
+import { ReactiveDict } from 'meteor/reactive-dict';
+import { WebApp } from 'meteor/webapp';
+import parseRequest from 'parseurl';
 
-import { getURL } from '../../utils/server';
+import { getURL } from '../../utils/server/getURL';
 
 type Injection =
 	| string
@@ -16,7 +16,7 @@ type Injection =
 			tag: string;
 	  };
 
-export const headInjections = new ReactiveDict();
+export const headInjections = new ReactiveDict<Record<string, Injection>>();
 
 const callback: NextHandleFunction = (req, res, next) => {
 	if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
@@ -32,7 +32,7 @@ const callback: NextHandleFunction = (req, res, next) => {
 			return;
 		}
 
-		const injection = headInjections.get(pathname.replace(/^\//, '')) as Injection | undefined;
+		const injection = headInjections.get(pathname.replace(/^\//, '').split('_')[0]);
 
 		if (!injection || typeof injection === 'string') {
 			next();
@@ -76,27 +76,37 @@ export const injectIntoHead = (key: string, value: Injection): void => {
 };
 
 export const addScript = (key: string, content: string): void => {
+	if (/_/.test(key)) {
+		throw new Error('inject.js > addScript - key cannot contain "_" (underscore)');
+	}
+
 	if (!content.trim()) {
-		injectIntoHead(`${key}.js`, '');
+		injectIntoHead(key, '');
 		return;
 	}
 	const currentHash = crypto.createHash('sha1').update(content).digest('hex');
-	injectIntoHead(`${key}.js`, {
+
+	injectIntoHead(key, {
 		type: 'JS',
-		tag: `<script id="${key}" type="text/javascript" src="${`${getURL(key)}.js?${currentHash}`}"></script>`,
+		tag: `<script id="${key}" type="text/javascript" src="${`${getURL(key)}_${currentHash}.js`}"></script>`,
 		content,
 	});
 };
 
 export const addStyle = (key: string, content: string): void => {
+	if (/_/.test(key)) {
+		throw new Error('inject.js > addStyle - key cannot contain "_" (underscore)');
+	}
+
 	if (!content.trim()) {
-		injectIntoHead(`${key}.css`, '');
+		injectIntoHead(key, '');
 		return;
 	}
 	const currentHash = crypto.createHash('sha1').update(content).digest('hex');
-	injectIntoHead(`${key}.css`, {
+
+	injectIntoHead(key, {
 		type: 'CSS',
-		tag: `<link id="${key}" rel="stylesheet" type="text/css" href="${`${getURL(key)}.css?${currentHash}`}">`,
+		tag: `<link id="${key}" rel="stylesheet" type="text/css" href="${`${getURL(key)}_${currentHash}.css`}">`,
 		content,
 	});
 };

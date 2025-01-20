@@ -7,6 +7,10 @@ export class Utils {
 		this.page = page;
 	}
 
+	get mainContent(): Locator {
+		return this.page.locator('main.main-content');
+	}
+
 	get toastBar(): Locator {
 		return this.page.locator('.rcx-toastbar');
 	}
@@ -20,6 +24,12 @@ export class Utils {
 	}
 
 	get btnModalConfirmDelete() {
-		return this.page.locator('.rcx-modal >> button >> text=Delete');
+		return this.page.locator('.rcx-modal >> button >> text="Delete"');
+	}
+
+	getAlertByText(text: string): Locator {
+		return this.page.locator('[role="alert"]', {
+			hasText: text,
+		});
 	}
 }

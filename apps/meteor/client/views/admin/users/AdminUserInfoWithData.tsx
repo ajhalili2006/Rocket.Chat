@@ -1,44 +1,50 @@
 import type { IUser } from '@rocket.chat/core-typings';
 import { Callout } from '@rocket.chat/fuselage';
-import { useMutableCallback } from '@rocket.chat/fuselage-hooks';
-import { useSetting, useRolesDescription, useTranslation } from '@rocket.chat/ui-contexts';
+import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+import { useSetting, useRolesDescription, useTranslation, useEndpoint } from '@rocket.chat/ui-contexts';
+import { useQuery } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
-import { getUserEmailAddress } from '../../../../lib/getUserEmailAddress';
-import { FormSkeleton } from '../../../components/Skeleton';
-import UserCard from '../../../components/UserCard';
-import UserInfo from '../../../components/UserInfo';
-import { UserStatus } from '../../../components/UserStatus';
-import VerticalBar from '../../../components/VerticalBar';
-import { AsyncStatePhase } from '../../../hooks/useAsyncState';
-import { useEndpointData } from '../../../hooks/useEndpointData';
-import { getUserEmailVerified } from '../../../lib/utils/getUserEmailVerified';
 import AdminUserInfoActions from './AdminUserInfoActions';
+import type { AdminUsersTab } from './AdminUsersPage';
+import { getUserEmailAddress } from '../../../../lib/getUserEmailAddress';
+import { ContextualbarContent } from '../../../components/Contextualbar';
+import { FormSkeleton } from '../../../components/Skeleton';
+import { UserCardRole } from '../../../components/UserCard';
+import { UserInfo } from '../../../components/UserInfo';
+import { UserStatus } from '../../../components/UserStatus';
+import { getUserEmailVerified } from '../../../lib/utils/getUserEmailVerified';
 
 type AdminUserInfoWithDataProps = {
 	uid: IUser['_id'];
 	onReload: () => void;
+	tab: AdminUsersTab;
 };
 
-const AdminUserInfoWithData = ({ uid, onReload }: AdminUserInfoWithDataProps): ReactElement => {
+const AdminUserInfoWithData = ({ uid, onReload, tab }: AdminUserInfoWithDataProps): ReactElement => {
 	const t = useTranslation();
 	const getRoles = useRolesDescription();
 	const approveManuallyUsers = useSetting('Accounts_ManuallyApproveNewUsers');
 
-	const {
-		value: data,
-		phase: state,
-		error,
-		reload: reloadUserInfo,
-	} = useEndpointData(
-		'/v1/users.info',
-		useMemo(() => ({ userId: uid }), [uid]),
-	);
+	const getUsersInfo = useEndpoint('GET', '/v1/users.info');
 
-	const onChange = useMutableCallback(() => {
+	const query = useMemo(() => ({ userId: uid }), [uid]);
+
+	const { data, isPending, error, refetch } = useQuery({
+		queryKey: ['users', query, 'admin'],
+		queryFn: async () => {
+			const usersInfo = await getUsersInfo(query);
+			return usersInfo;
+		},
+		meta: {
+			apiErrorToastMessage: true,
+		},
+	});
+
+	const onChange = useEffectEvent(() => {
 		onReload();
-		reloadUserInfo();
+		refetch();
 	});
 
 	const user = useMemo(() => {
@@ -60,6 +66,7 @@ const AdminUserInfoWithData = ({ uid, onReload }: AdminUserInfoWithDataProps): R
 			lastLogin,
 			nickname,
 			canViewAllInfo,
+			reason,
 		} = data.user;
 
 		return {
@@ -67,7 +74,7 @@ const AdminUserInfoWithData = ({ uid, onReload }: AdminUserInfoWithDataProps): R
 			name,
 			username,
 			lastLogin,
-			roles: getRoles(roles).map((role, index) => <UserCard.Role key={index}>{role}</UserCard.Role>),
+			roles: getRoles(roles).map((role, index) => <UserCardRole key={index}>{role}</UserCardRole>),
 			bio,
 			canViewAllInfo,
 			phone,
@@ -82,22 +89,23 @@ const AdminUserInfoWithData = ({ uid, onReload }: AdminUserInfoWithDataProps): R
 			status: <UserStatus status={status} />,
 			statusText,
 			nickname,
+			reason,
 		};
 	}, [approveManuallyUsers, data, getRoles]);
 
-	if (state === AsyncStatePhase.LOADING) {
+	if (isPending) {
 		return (
-			<VerticalBar.Content>
+			<ContextualbarContent>
 				<FormSkeleton />
-			</VerticalBar.Content>
+			</ContextualbarContent>
 		);
 	}
 
 	if (error || !user || !data?.user) {
 		return (
-			<VerticalBar.Content pb='x16'>
+			<ContextualbarContent pb={16}>
 				<Callout type='danger'>{t('User_not_found')}</Callout>
-			</VerticalBar.Content>
+			</ContextualbarContent>
 		);
 	}
 
@@ -107,12 +115,13 @@ const AdminUserInfoWithData = ({ uid, onReload }: AdminUserInfoWithDataProps): R
 			actions={
 				<AdminUserInfoActions
 					isActive={data?.user.active}
-					isAdmin={data?.user.roles.includes('admin')}
+					isAdmin={data?.user.roles?.includes('admin')}
 					userId={data?.user._id}
 					username={user.username}
-					isAFederatedUser={data?.user.federated}
+					isFederatedUser={!!data.user.federated}
 					onChange={onChange}
 					onReload={onReload}
+					tab={tab}
 				/>
 			}
 		/>

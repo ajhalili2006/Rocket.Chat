@@ -1,9 +1,8 @@
 import type { IRoom } from '@rocket.chat/core-typings';
 import { createContext, useContext } from 'react';
-import type { Subscription } from 'use-subscription';
-import { useSubscription } from 'use-subscription';
+import { useSyncExternalStore } from 'use-sync-external-store/shim';
 
-import type { DirectCallParams, ProviderCapabilities, CallPreferences } from '../lib/VideoConfManager';
+import type { DirectCallData, ProviderCapabilities, CallPreferences, VideoConfManager } from '../lib/VideoConfManager';
 
 export type VideoConfPopupPayload = {
 	id: string;
@@ -11,13 +10,8 @@ export type VideoConfPopupPayload = {
 	isReceiving?: boolean;
 };
 
-export type VideoConfIncomingCall = {
-	callId: string;
-	uid: string;
-	rid: string;
-};
-
 type VideoConfContextValue = {
+	manager: typeof VideoConfManager;
 	dispatchOutgoing: (options: Omit<VideoConfPopupPayload, 'id'>) => void;
 	dismissOutgoing: () => void;
 	startCall: (rid: IRoom['_id'], title?: string) => void;
@@ -27,11 +21,26 @@ type VideoConfContextValue = {
 	rejectIncomingCall: (callId: string) => void;
 	abortCall: () => void;
 	setPreferences: (prefs: { mic?: boolean; cam?: boolean }) => void;
-	queryIncomingCalls: Subscription<DirectCallParams[]>;
-	queryRinging: Subscription<boolean>;
-	queryCalling: Subscription<boolean>;
-	queryCapabilities: Subscription<ProviderCapabilities>;
-	queryPreferences: Subscription<CallPreferences>;
+	queryIncomingCalls: {
+		subscribe: (cb: () => void) => () => void;
+		getSnapshot: () => DirectCallData[];
+	};
+	queryRinging: {
+		subscribe: (cb: () => void) => () => void;
+		getSnapshot: () => boolean;
+	};
+	queryCalling: {
+		subscribe: (cb: () => void) => () => void;
+		getSnapshot: () => boolean;
+	};
+	queryCapabilities: {
+		subscribe: (cb: () => void) => () => void;
+		getSnapshot: () => ProviderCapabilities;
+	};
+	queryPreferences: {
+		subscribe: (cb: () => void) => () => void;
+		getSnapshot: () => CallPreferences;
+	};
 };
 
 export const VideoConfContext = createContext<VideoConfContextValue | undefined>(undefined);
@@ -52,24 +61,26 @@ export const useVideoConfJoinCall = (): VideoConfContextValue['joinCall'] => use
 export const useVideoConfDismissCall = (): VideoConfContextValue['dismissCall'] => useVideoConfContext().dismissCall;
 export const useVideoConfAbortCall = (): VideoConfContextValue['abortCall'] => useVideoConfContext().abortCall;
 export const useVideoConfRejectIncomingCall = (): VideoConfContextValue['rejectIncomingCall'] => useVideoConfContext().rejectIncomingCall;
-export const useVideoConfIncomingCalls = (): DirectCallParams[] => {
+export const useVideoConfIncomingCalls = (): DirectCallData[] => {
 	const { queryIncomingCalls } = useVideoConfContext();
-	return useSubscription(queryIncomingCalls);
+	return useSyncExternalStore(queryIncomingCalls.subscribe, queryIncomingCalls.getSnapshot);
 };
 export const useVideoConfSetPreferences = (): VideoConfContextValue['setPreferences'] => useVideoConfContext().setPreferences;
 export const useVideoConfIsRinging = (): boolean => {
 	const { queryRinging } = useVideoConfContext();
-	return useSubscription(queryRinging);
+	return useSyncExternalStore(queryRinging.subscribe, queryRinging.getSnapshot);
 };
 export const useVideoConfIsCalling = (): boolean => {
 	const { queryCalling } = useVideoConfContext();
-	return useSubscription(queryCalling);
+	return useSyncExternalStore(queryCalling.subscribe, queryCalling.getSnapshot);
 };
 export const useVideoConfCapabilities = (): ProviderCapabilities => {
 	const { queryCapabilities } = useVideoConfContext();
-	return useSubscription(queryCapabilities);
+	return useSyncExternalStore(queryCapabilities.subscribe, queryCapabilities.getSnapshot);
 };
 export const useVideoConfPreferences = (): CallPreferences => {
 	const { queryPreferences } = useVideoConfContext();
-	return useSubscription(queryPreferences);
+	return useSyncExternalStore(queryPreferences.subscribe, queryPreferences.getSnapshot);
 };
+
+export const useVideoConfManager = (): typeof VideoConfManager | undefined => useContext(VideoConfContext)?.manager;

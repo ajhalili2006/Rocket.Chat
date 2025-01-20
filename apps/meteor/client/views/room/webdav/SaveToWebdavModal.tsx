@@ -1,13 +1,14 @@
 import type { MessageAttachment, IWebdavAccount } from '@rocket.chat/core-typings';
 import type { SelectOption } from '@rocket.chat/fuselage';
-import { Modal, Box, Button, FieldGroup, Field, Select, Throbber } from '@rocket.chat/fuselage';
+import { Modal, Box, Button, FieldGroup, Field, FieldLabel, FieldRow, FieldError, Select, Throbber } from '@rocket.chat/fuselage';
 import { useUniqueId } from '@rocket.chat/fuselage-hooks';
-import { useMethod, useToastMessageDispatch, useTranslation } from '@rocket.chat/ui-contexts';
+import { useMethod, useSetting, useToastMessageDispatch } from '@rocket.chat/ui-contexts';
 import type { ReactElement } from 'react';
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 
-import { useEndpointData } from '../../../hooks/useEndpointData';
+import { useWebDAVAccountIntegrationsQuery } from '../../../hooks/webdav/useWebDAVAccountIntegrationsQuery';
 import { getWebdavServerName } from '../../../lib/getWebdavServerName';
 
 type SaveToWebdavModalProps = {
@@ -19,7 +20,7 @@ type SaveToWebdavModalProps = {
 };
 
 const SaveToWebdavModal = ({ onClose, data }: SaveToWebdavModalProps): ReactElement => {
-	const t = useTranslation();
+	const { t } = useTranslation();
 	const [isLoading, setIsLoading] = useState(false);
 	const dispatchToastMessage = useToastMessageDispatch();
 	const uploadFileToWebdav = useMethod('uploadFileToWebdav');
@@ -30,17 +31,15 @@ const SaveToWebdavModal = ({ onClose, data }: SaveToWebdavModalProps): ReactElem
 		control,
 		handleSubmit,
 		formState: { errors },
-	} = useForm<{ accountId: string }>();
+	} = useForm<{ accountId: string }>({ mode: 'all' });
 
-	const { value } = useEndpointData('/v1/webdav.getMyAccounts');
+	const enabled = useSetting<boolean>('Webdav_Integration_Enabled', false);
+
+	const { data: value } = useWebDAVAccountIntegrationsQuery({ enabled });
 
 	const accountsOptions: SelectOption[] = useMemo(() => {
-		if (value?.accounts) {
-			return value.accounts.map(({ _id, ...current }) => [_id, getWebdavServerName(current)]);
-		}
-
-		return [];
-	}, [value?.accounts]);
+		return value?.map(({ _id, ...current }) => [_id, getWebdavServerName(current)]) ?? [];
+	}, [value]);
 
 	useEffect(() => fileRequest.current?.abort, []);
 
@@ -58,12 +57,13 @@ const SaveToWebdavModal = ({ onClose, data }: SaveToWebdavModalProps): ReactElem
 		fileRequest.current.onload = async (): Promise<void> => {
 			const arrayBuffer = fileRequest.current?.response;
 			if (arrayBuffer) {
-				const fileData = new Uint8Array(arrayBuffer);
-
 				try {
-					const response = await uploadFileToWebdav(accountId, fileData, title);
+					if (!title) {
+						throw new Error('File name is required');
+					}
+					const response = await uploadFileToWebdav(accountId, arrayBuffer, title);
 					if (!response.success) {
-						return dispatchToastMessage({ type: 'error', message: t(response.message) });
+						throw new Error(response.message ? t(response.message) : 'Error uploading file');
 					}
 					return dispatchToastMessage({ type: 'success', message: t('File_uploaded') });
 				} catch (error) {
@@ -78,7 +78,7 @@ const SaveToWebdavModal = ({ onClose, data }: SaveToWebdavModalProps): ReactElem
 	};
 
 	return (
-		<Modal is='form' onSubmit={handleSubmit(handleSaveFile)}>
+		<Modal wrapperFunction={(props) => <Box is='form' onSubmit={handleSubmit(handleSaveFile)} {...props} />}>
 			<Modal.Header>
 				<Modal.Title>{t('Save_To_Webdav')}</Modal.Title>
 				<Modal.Close title={t('Close')} onClick={onClose} />
@@ -92,18 +92,18 @@ const SaveToWebdavModal = ({ onClose, data }: SaveToWebdavModalProps): ReactElem
 				{!isLoading && (
 					<FieldGroup>
 						<Field>
-							<Field.Label>{t('Select_a_webdav_server')}</Field.Label>
-							<Field.Row>
+							<FieldLabel>{t('Select_a_webdav_server')}</FieldLabel>
+							<FieldRow>
 								<Controller
 									name='accountId'
 									control={control}
-									rules={{ required: true }}
+									rules={{ required: t('Required_field', { field: t('Select_a_webdav_server') }) }}
 									render={({ field }): ReactElement => (
 										<Select {...field} options={accountsOptions} id={accountIdField} placeholder={t('Select_an_option')} />
 									)}
 								/>
-							</Field.Row>
-							{errors.accountId && <Field.Error>{t('Field_required')}</Field.Error>}
+							</FieldRow>
+							{errors.accountId && <FieldError>{errors.accountId.message}</FieldError>}
 						</Field>
 					</FieldGroup>
 				)}
@@ -111,8 +111,8 @@ const SaveToWebdavModal = ({ onClose, data }: SaveToWebdavModalProps): ReactElem
 			<Modal.Footer>
 				<Modal.FooterControllers>
 					<Button onClick={onClose}>{t('Cancel')}</Button>
-					<Button primary type='submit' disabled={isLoading}>
-						{isLoading ? t('Please_wait') : t('Save_To_Webdav')}
+					<Button primary type='submit' loading={isLoading}>
+						{t('Save_To_Webdav')}
 					</Button>
 				</Modal.FooterControllers>
 			</Modal.Footer>

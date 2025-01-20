@@ -1,8 +1,8 @@
 import { isDirectMessageRoom } from '@rocket.chat/core-typings';
-import type { ISubscription, IRegisterUser, IUser, IRoom } from '@rocket.chat/core-typings';
-import { Settings } from '@rocket.chat/models';
+import type { ISubscription, IUser, IRoom } from '@rocket.chat/core-typings';
+import { Settings, Users, Subscriptions } from '@rocket.chat/models';
 
-import { Subscriptions, Users } from '../../../models/server';
+import { notifyOnSettingChangedById } from '../../../lib/server/lib/notifyListener';
 import { STATUS_ENABLED, STATUS_REGISTERING } from '../constants';
 
 export const getNameAndDomain = (fullyQualifiedName: string): string[] => fullyQualifiedName.split('@');
@@ -15,15 +15,16 @@ export async function isRegisteringOrEnabled(): Promise<boolean> {
 }
 
 export async function updateStatus(status: string): Promise<void> {
+	// No need to call ws listener because current function is called on startup
 	await Settings.updateValueById('FEDERATION_Status', status);
 }
 
 export async function updateEnabled(enabled: boolean): Promise<void> {
-	await Settings.updateValueById('FEDERATION_Enabled', enabled);
+	(await Settings.updateValueById('FEDERATION_Enabled', enabled)).modifiedCount && void notifyOnSettingChangedById('FEDERATION_Enabled');
 }
 
 export const checkRoomType = (room: IRoom): boolean => room.t === 'p' || room.t === 'd';
-export const checkRoomDomainsLength = (domains: unknown[]): boolean => domains.length <= (process.env.FEDERATED_DOMAINS_LENGTH || 10);
+export const checkRoomDomainsLength = (domains: unknown[]): boolean => domains.length <= Number(process.env.FEDERATED_DOMAINS_LENGTH ?? 10);
 
 export const hasExternalDomain = ({ federation }: { federation: { origin: string; domains: string[] } }): boolean => {
 	// same test as isFederated(room)
@@ -37,13 +38,13 @@ export const hasExternalDomain = ({ federation }: { federation: { origin: string
 export const isLocalUser = ({ federation }: { federation: { origin: string } }, localDomain: string): boolean =>
 	!federation || federation.origin === localDomain;
 
-export const getFederatedRoomData = (
+export const getFederatedRoomData = async (
 	room: IRoom,
-): {
+): Promise<{
 	hasFederatedUser: boolean;
 	users: IUser[];
 	subscriptions: { [k: string]: ISubscription } | undefined;
-} => {
+}> => {
 	if (isDirectMessageRoom(room)) {
 		// Check if there is a federated user on this room
 
@@ -55,20 +56,23 @@ export const getFederatedRoomData = (
 	}
 
 	// Find all subscriptions of this room
-	const s = Subscriptions.findByRoomIdWhenUsernameExists(room._id).fetch() as ISubscription[];
-	const subscriptions = s.reduce((acc, s) => {
-		acc[s.u._id] = s;
-		return acc;
-	}, {} as { [k: string]: ISubscription });
+	const s = await Subscriptions.findByRoomIdWhenUsernameExists(room._id).toArray();
+	const subscriptions = s.reduce(
+		(acc, s) => {
+			acc[s.u._id] = s;
+			return acc;
+		},
+		{} as { [k: string]: ISubscription },
+	);
 
 	// Get all user ids
 	const userIds = Object.keys(subscriptions);
 
 	// Load all the users
-	const users: IRegisterUser[] = Users.findUsersWithUsernameByIds(userIds).fetch();
+	const users = await Users.findUsersWithUsernameByIds(userIds).toArray();
 
 	// Check if there is a federated user on this room
-	const hasFederatedUser = users.some((u) => isFullyQualified(u.username));
+	const hasFederatedUser = users.some((u) => u.username && isFullyQualified(u.username));
 
 	return {
 		hasFederatedUser,

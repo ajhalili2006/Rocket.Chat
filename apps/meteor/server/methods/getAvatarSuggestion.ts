@@ -1,15 +1,30 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import type { IUser } from '@rocket.chat/core-typings';
+import type { ServerMethods } from '@rocket.chat/ddp-client';
 import { Meteor } from 'meteor/meteor';
 
 import { getAvatarSuggestionForUser } from '../../app/lib/server/functions/getAvatarSuggestionForUser';
 import { methodDeprecationLogger } from '../../app/lib/server/lib/deprecationWarningLogger';
 
-Meteor.methods({
-	async getAvatarSuggestion() {
-		methodDeprecationLogger.warn('getAvatarSuggestion will be deprecated in future versions of Rocket.Chat');
+declare module '@rocket.chat/ddp-client' {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	interface ServerMethods {
+		getAvatarSuggestion(): Record<
+			string,
+			{
+				blob: string;
+				contentType: string;
+				service: string;
+				url: string;
+			}
+		>;
+	}
+}
 
-		const user = Meteor.user() as IUser | undefined;
+Meteor.methods<ServerMethods>({
+	async getAvatarSuggestion() {
+		methodDeprecationLogger.method('getAvatarSuggestion', '7.0.0');
+
+		const user = (await Meteor.userAsync()) as IUser | undefined;
 		if (!user) {
 			throw new Meteor.Error('error-invalid-user', 'Invalid user', {
 				method: 'getAvatarSuggestion',

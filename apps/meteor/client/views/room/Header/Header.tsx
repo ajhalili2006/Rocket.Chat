@@ -1,15 +1,17 @@
 import type { IRoom } from '@rocket.chat/core-typings';
-import { isVoipRoom } from '@rocket.chat/core-typings';
-import { Header as TemplateHeader } from '@rocket.chat/ui-client';
-import { useLayout } from '@rocket.chat/ui-contexts';
+import { isDirectMessageRoom, isVoipRoom } from '@rocket.chat/core-typings';
+import { useLayout, useSetting } from '@rocket.chat/ui-contexts';
 import type { ReactElement } from 'react';
-import React, { memo, useMemo } from 'react';
+import { lazy, memo, useMemo } from 'react';
 
-import BurgerMenu from '../../../components/BurgerMenu';
-import DirectRoomHeader from './DirectRoomHeader';
-import OmnichannelRoomHeader from './Omnichannel/OmnichannelRoomHeader';
-import VoipRoomHeader from './Omnichannel/VoipRoomHeader';
-import RoomHeader from './RoomHeader';
+import { HeaderToolbar } from '../../../components/Header';
+import SidebarToggler from '../../../components/SidebarToggler';
+
+const OmnichannelRoomHeader = lazy(() => import('./Omnichannel/OmnichannelRoomHeader'));
+const VoipRoomHeader = lazy(() => import('./Omnichannel/VoipRoomHeader'));
+const RoomHeaderE2EESetup = lazy(() => import('./RoomHeaderE2EESetup'));
+const DirectRoomHeader = lazy(() => import('./DirectRoomHeader'));
+const RoomHeader = lazy(() => import('./RoomHeader'));
 
 type HeaderProps<T> = {
 	room: T;
@@ -17,13 +19,16 @@ type HeaderProps<T> = {
 
 const Header = ({ room }: HeaderProps<IRoom>): ReactElement | null => {
 	const { isMobile, isEmbedded, showTopNavbarEmbeddedLayout } = useLayout();
+	const encrypted = Boolean(room.encrypted);
+	const unencryptedMessagesAllowed = useSetting('E2E_Allow_Unencrypted_Messages', false);
+	const shouldDisplayE2EESetup = encrypted && !unencryptedMessagesAllowed;
 
 	const slots = useMemo(
 		() => ({
 			start: isMobile && (
-				<TemplateHeader.ToolBox>
-					<BurgerMenu />
-				</TemplateHeader.ToolBox>
+				<HeaderToolbar>
+					<SidebarToggler />
+				</HeaderToolbar>
 			),
 		}),
 		[isMobile],
@@ -31,10 +36,6 @@ const Header = ({ room }: HeaderProps<IRoom>): ReactElement | null => {
 
 	if (isEmbedded && !showTopNavbarEmbeddedLayout) {
 		return null;
-	}
-
-	if (room.t === 'd' && (room.uids?.length ?? 0) < 3) {
-		return <DirectRoomHeader slots={slots} room={room} />;
 	}
 
 	if (room.t === 'l') {
@@ -45,7 +46,15 @@ const Header = ({ room }: HeaderProps<IRoom>): ReactElement | null => {
 		return <VoipRoomHeader slots={slots} room={room} />;
 	}
 
-	return <RoomHeader slots={slots} room={room} topic={room.topic} />;
+	if (shouldDisplayE2EESetup) {
+		return <RoomHeaderE2EESetup room={room} topic={room.topic} slots={slots} />;
+	}
+
+	if (isDirectMessageRoom(room) && (room.uids?.length ?? 0) < 3) {
+		return <DirectRoomHeader slots={slots} room={room} />;
+	}
+
+	return <RoomHeader room={room} topic={room.topic} slots={slots} />;
 };
 
 export default memo(Header);

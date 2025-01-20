@@ -1,12 +1,14 @@
+import { InstanceStatus } from '@rocket.chat/instance-status';
+import { Logger } from '@rocket.chat/logger';
+import { tracerActiveSpan } from '@rocket.chat/tracing';
 import { Meteor } from 'meteor/meteor';
 import { WebApp } from 'meteor/webapp';
-import { InstanceStatus } from 'meteor/konecty:multiple-instances-status';
 import _ from 'underscore';
 
-import { settings } from '../../../settings/server';
-import { metrics } from '../../../metrics/server';
-import { Logger } from '../../../../server/lib/logger/Logger';
 import { getMethodArgs } from '../../../../server/lib/logger/logPayloads';
+import { metrics } from '../../../metrics/server';
+import { settings } from '../../../settings/server';
+import { getModifiedHttpHeaders } from '../functions/getModifiedHttpHeaders';
 
 const logger = new Logger('Meteor');
 
@@ -41,7 +43,7 @@ const traceConnection = (enable, filter, prefix, name, connection, userId) => {
 		console.log(name, {
 			id: connection.id,
 			clientAddress: connection.clientAddress,
-			httpHeaders: connection.httpHeaders,
+			httpHeaders: getModifiedHttpHeaders(connection.httpHeaders),
 			userId,
 		});
 	} else {
@@ -71,16 +73,27 @@ const wrapMethods = function (name, originalHandler, methodsMap) {
 			...getMethodArgs(name, originalArgs),
 		});
 
-		const result = originalHandler.apply(this, originalArgs);
-		end();
-		return result;
+		return tracerActiveSpan(
+			`Method ${name}`,
+			{
+				attributes: {
+					method: name,
+					userId: this.userId,
+				},
+			},
+			async () => {
+				const result = await originalHandler.apply(this, originalArgs);
+				end();
+				return result;
+			},
+		);
 	};
 };
 
 const originalMeteorMethods = Meteor.methods;
 
 Meteor.methods = function (methodMap) {
-	_.each(methodMap, function (handler, name) {
+	_.each(methodMap, (handler, name) => {
 		wrapMethods(name, handler, methodMap);
 	});
 	originalMeteorMethods(methodMap);
@@ -113,7 +126,7 @@ Meteor.publish = function (name, func) {
 	});
 };
 
-WebApp.rawConnectHandlers.use(function (req, res, next) {
+WebApp.rawConnectHandlers.use((req, res, next) => {
 	res.setHeader('X-Instance-ID', InstanceStatus.id());
 	return next();
 });

@@ -1,18 +1,18 @@
-import path, { join } from 'path';
 import { mkdir, mkdtemp } from 'fs/promises';
 import { tmpdir } from 'os';
+import path, { join } from 'path';
 
-import { TAPi18n } from 'meteor/rocketchat:tap-i18n';
 import type { IUser } from '@rocket.chat/core-typings';
 
-import { getURL } from '../../../app/utils/lib/getURL';
-import { getPath } from './getPath';
+import { getURL } from '../../../app/utils/server/getURL';
+import { i18n } from '../i18n';
 import { copyFileUpload } from './copyFileUpload';
-import { getRoomData } from './getRoomData';
 import { exportRoomMessagesToFile } from './exportRoomMessagesToFile';
+import { getPath } from './getPath';
+import { getRoomData } from './getRoomData';
 import { makeZipFile } from './makeZipFile';
-import { uploadZipFile } from './uploadZipFile';
 import { sendEmail } from './sendEmail';
+import { uploadZipFile } from './uploadZipFile';
 
 type ExportFile = {
 	rid: string;
@@ -32,7 +32,7 @@ export const sendFile = async (data: ExportFile, user: IUser): Promise<void> => 
 	await mkdir(exportPath, { recursive: true });
 	await mkdir(assetsPath, { recursive: true });
 
-	const roomData = getRoomData(data.rid);
+	const roomData = await getRoomData(data.rid);
 
 	roomData.targetFile = `${(data.format === 'json' && roomData.roomName) || roomData.roomId}.${data.format}`;
 
@@ -48,7 +48,7 @@ export const sendFile = async (data: ExportFile, user: IUser): Promise<void> => 
 						...(data.dateFrom && { $gte: data.dateFrom }),
 						...(data.dateTo && { $lte: data.dateTo }),
 					},
-			  };
+				};
 
 	const exportMessages = async (): Promise<void> => {
 		const { fileList } = await exportRoomMessagesToFile(exportPath, assetsPath, exportType, roomsToExport, user, filter, {}, false);
@@ -64,20 +64,22 @@ export const sendFile = async (data: ExportFile, user: IUser): Promise<void> => 
 
 	await exportMessages();
 
+	const promises: Promise<void>[] = [];
 	for await (const attachmentData of fullFileList) {
-		await copyFileUpload(attachmentData, assetsPath);
+		promises.push(copyFileUpload(attachmentData, assetsPath));
 	}
+	await Promise.all(promises);
 
 	const exportFile = `${baseDir}-export.zip`;
 	await makeZipFile(exportPath, exportFile);
 
 	const file = await uploadZipFile(exportFile, user._id, exportType);
 
-	const subject = TAPi18n.__('Channel_Export');
+	const subject = i18n.t('Channel_Export');
 
-	const body = TAPi18n.__('UserDataDownload_EmailBody', {
+	const body = i18n.t('UserDataDownload_EmailBody', {
 		download_link: getURL(getPath(file._id), { cdn: false, full: true }),
 	});
 
-	sendEmail(user, subject, body);
+	await sendEmail(user, subject, body);
 };

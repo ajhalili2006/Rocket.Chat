@@ -1,15 +1,18 @@
-import { HttpBridge } from '@rocket.chat/apps-engine/server/bridges/HttpBridge';
+import type { IAppServerOrchestrator } from '@rocket.chat/apps';
 import type { IHttpResponse } from '@rocket.chat/apps-engine/definition/accessors';
 import type { IHttpBridgeRequestInfo } from '@rocket.chat/apps-engine/server/bridges';
-
-import type { AppServerOrchestrator } from '../orchestrator';
-import { fetch } from '../../../../server/lib/http/fetch';
+import { HttpBridge } from '@rocket.chat/apps-engine/server/bridges/HttpBridge';
+import { serverFetch as fetch } from '@rocket.chat/server-fetch';
 
 const isGetOrHead = (method: string): boolean => ['GET', 'HEAD'].includes(method.toUpperCase());
 
+// Previously, there was no timeout for HTTP requests.
+// We're setting the default timeout now to 3 minutes as it
+// seems to be a good balance
+const DEFAULT_TIMEOUT = 3 * 60 * 1000;
+
 export class AppHttpBridge extends HttpBridge {
-	// eslint-disable-next-line no-empty-function
-	constructor(private readonly orch: AppServerOrchestrator) {
+	constructor(private readonly orch: IAppServerOrchestrator) {
 		super();
 	}
 
@@ -24,8 +27,7 @@ export class AppHttpBridge extends HttpBridge {
 		let { content } = request;
 
 		if (!content && typeof request.data === 'object') {
-			content = JSON.stringify(request.data);
-			headers['Content-Type'] = 'application/json';
+			content = request.data;
 		}
 
 		if (request.auth) {
@@ -64,58 +66,57 @@ export class AppHttpBridge extends HttpBridge {
 			content = undefined;
 		}
 
+		const timeout = request.timeout || DEFAULT_TIMEOUT;
+
 		// end comptability with old HTTP.call API
 
 		this.orch.debugLog(`The App ${info.appId} is requesting from the outter webs:`, info);
 
-		try {
-			const response = await fetch(
-				url.href,
-				{
-					method,
-					body: content,
-					headers,
-				},
-				(request.hasOwnProperty('strictSSL') && !request.strictSSL) ||
-					(request.hasOwnProperty('rejectUnauthorized') && request.rejectUnauthorized),
-			);
+		const response = await fetch(
+			url.href,
+			{
+				method,
+				body: content,
+				headers,
+				timeout,
+			},
+			(request.hasOwnProperty('strictSSL') && !request.strictSSL) ||
+				(request.hasOwnProperty('rejectUnauthorized') && request.rejectUnauthorized),
+		);
 
-			const result: IHttpResponse = {
-				url: info.url,
-				method: info.method,
-				statusCode: response.status,
-				headers: Object.fromEntries(response.headers as unknown as any),
-			};
+		const result: IHttpResponse = {
+			url: info.url,
+			method: info.method,
+			statusCode: response.status,
+			headers: Object.fromEntries(response.headers as unknown as any),
+		};
 
-			const body = Buffer.from(await response.arrayBuffer());
+		const body = Buffer.from(await response.arrayBuffer());
 
-			if (request.encoding === null) {
-				/**
-				 * The property `content` is not appropriately typed in the
-				 * Apps-engine definition, and we can't simply change it there
-				 * as it would be a breaking change. Thus, we're left with this
-				 * type assertion.
-				 */
-				result.content = body as any;
-			} else {
-				result.content = body.toString(request.encoding as BufferEncoding);
-				result.data = ((): any => {
-					const contentType = (response.headers.get('content-type') || '').split(';')[0];
-					if (!['application/json', 'text/javascript', 'application/javascript', 'application/x-javascript'].includes(contentType)) {
-						return null;
-					}
+		if (request.encoding === null) {
+			/**
+			 * The property `content` is not appropriately typed in the
+			 * Apps-engine definition, and we can't simply change it there
+			 * as it would be a breaking change. Thus, we're left with this
+			 * type assertion.
+			 */
+			result.content = body as any;
+		} else {
+			result.content = body.toString(request.encoding as BufferEncoding);
+			result.data = ((): any => {
+				const contentType = (response.headers.get('content-type') || '').split(';')[0];
+				if (!['application/json', 'text/javascript', 'application/javascript', 'application/x-javascript'].includes(contentType)) {
+					return null;
+				}
 
-					try {
-						return JSON.parse(result.content);
-					} catch {
-						return null;
-					}
-				})();
-			}
-
-			return result;
-		} catch (e: any) {
-			return e.response;
+				try {
+					return JSON.parse(result.content);
+				} catch {
+					return null;
+				}
+			})();
 		}
+
+		return result;
 	}
 }

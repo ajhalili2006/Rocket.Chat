@@ -1,11 +1,11 @@
-import { Box, Button, ButtonGroup, Skeleton, Throbber, InputBox, Callout } from '@rocket.chat/fuselage';
-import { useTranslation } from '@rocket.chat/ui-contexts';
-import type { FC } from 'react';
-import React, { useMemo } from 'react';
+import { Callout } from '@rocket.chat/fuselage';
+import { useEndpoint } from '@rocket.chat/ui-contexts';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { AsyncStatePhase } from '../../../hooks/useAsyncState';
-import { useEndpointData } from '../../../hooks/useEndpointData';
 import EditCustomEmoji from './EditCustomEmoji';
+import { FormSkeleton } from '../../../components/Skeleton';
 
 type EditCustomEmojiWithDataProps = {
 	_id: string;
@@ -13,43 +13,23 @@ type EditCustomEmojiWithDataProps = {
 	onChange: () => void;
 };
 
-const EditCustomEmojiWithData: FC<EditCustomEmojiWithDataProps> = ({ _id, onChange, close, ...props }) => {
-	const t = useTranslation();
-	const query = useMemo(() => ({ query: JSON.stringify({ _id }) }), [_id]);
+const EditCustomEmojiWithData = ({ _id, onChange, close, ...props }: EditCustomEmojiWithDataProps) => {
+	const { t } = useTranslation();
+	const query = useMemo(() => ({ _id }), [_id]);
 
-	const {
-		value: data = {
-			emojis: {
-				update: [],
-			},
+	const getEmojis = useEndpoint('GET', '/v1/emoji-custom.list');
+
+	const { data, isPending, error, refetch } = useQuery({
+		queryKey: ['custom-emojis', query],
+
+		queryFn: async () => {
+			const emoji = await getEmojis(query);
+			return emoji;
 		},
-		phase: state,
-		error,
-		reload,
-	} = useEndpointData('/v1/emoji-custom.list', query);
+	});
 
-	if (state === AsyncStatePhase.LOADING) {
-		return (
-			<Box pb='x20'>
-				<Skeleton mbs='x8' />
-				<InputBox.Skeleton w='full' />
-				<Skeleton mbs='x8' />
-				<InputBox.Skeleton w='full' />
-				<ButtonGroup stretch w='full' mbs='x8'>
-					<Button disabled>
-						<Throbber inheritColor />
-					</Button>
-					<Button primary disabled>
-						<Throbber inheritColor />
-					</Button>
-				</ButtonGroup>
-				<ButtonGroup stretch w='full' mbs='x8'>
-					<Button danger disabled>
-						<Throbber inheritColor />
-					</Button>
-				</ButtonGroup>
-			</Box>
-		);
+	if (isPending) {
+		return <FormSkeleton pi={20} />;
 	}
 
 	if (error || !data || !data.emojis || data.emojis.update.length < 1) {
@@ -58,7 +38,7 @@ const EditCustomEmojiWithData: FC<EditCustomEmojiWithDataProps> = ({ _id, onChan
 
 	const handleChange = (): void => {
 		onChange?.();
-		reload?.();
+		refetch?.();
 	};
 
 	return <EditCustomEmoji data={data.emojis.update[0]} close={close} onChange={handleChange} {...props} />;

@@ -1,10 +1,15 @@
-import { States, StatesIcon, StatesTitle, Pagination } from '@rocket.chat/fuselage';
+import { Pagination } from '@rocket.chat/fuselage';
 import { useDebouncedValue } from '@rocket.chat/fuselage-hooks';
-import { useTranslation } from '@rocket.chat/ui-contexts';
+import { escapeRegExp } from '@rocket.chat/string-helpers';
+import { useEndpoint } from '@rocket.chat/ui-contexts';
+import { useQuery } from '@tanstack/react-query';
 import type { ReactElement, MutableRefObject } from 'react';
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
+import CustomUserStatusRow from './CustomUserStatusRow';
 import FilterByText from '../../../../components/FilterByText';
+import GenericNoResult from '../../../../components/GenericNoResults';
 import {
 	GenericTable,
 	GenericTableHeader,
@@ -14,17 +19,15 @@ import {
 } from '../../../../components/GenericTable';
 import { usePagination } from '../../../../components/GenericTable/hooks/usePagination';
 import { useSort } from '../../../../components/GenericTable/hooks/useSort';
-import { useEndpointData } from '../../../../hooks/useEndpointData';
-import { AsyncStatePhase } from '../../../../lib/asyncState';
-import CustomUserStatusRow from './CustomUserStatusRow';
 
 type CustomUserStatusProps = {
 	reload: MutableRefObject<() => void>;
 	onClick: (id: string) => void;
 };
 
+// TODO: Missing error state
 const CustomUserStatus = ({ reload, onClick }: CustomUserStatusProps): ReactElement | null => {
-	const t = useTranslation();
+	const { t } = useTranslation();
 	const [text, setText] = useState('');
 	const { current, itemsPerPage, setItemsPerPage: onSetItemsPerPage, setCurrent: onSetCurrent, ...paginationProps } = usePagination();
 	const { sortBy, sortDirection, setSort } = useSort<'name' | 'statusType'>('name');
@@ -32,7 +35,7 @@ const CustomUserStatus = ({ reload, onClick }: CustomUserStatusProps): ReactElem
 	const query = useDebouncedValue(
 		useMemo(
 			() => ({
-				query: JSON.stringify({ name: { $regex: text || '', $options: 'i' } }),
+				name: escapeRegExp(text),
 				sort: `{ "${sortBy}": ${sortDirection === 'asc' ? 1 : -1} }`,
 				count: itemsPerPage,
 				offset: current,
@@ -42,26 +45,33 @@ const CustomUserStatus = ({ reload, onClick }: CustomUserStatusProps): ReactElem
 		500,
 	);
 
-	const { value, reload: reloadEndpoint, phase } = useEndpointData('/v1/custom-user-status.list', query);
+	const getCustomUserStatus = useEndpoint('GET', '/v1/custom-user-status.list');
+
+	const { data, isLoading, refetch, isFetched } = useQuery({
+		queryKey: ['custom-user-statuses', query],
+
+		queryFn: async () => {
+			const { statuses } = await getCustomUserStatus(query);
+			return statuses;
+		},
+		meta: {
+			apiErrorToastMessage: true,
+		},
+	});
 
 	useEffect(() => {
-		reload.current = reloadEndpoint;
-	}, [reload, reloadEndpoint]);
+		reload.current = refetch;
+	}, [reload, refetch]);
 
-	if (phase === AsyncStatePhase.REJECTED) {
+	if (!data) {
 		return null;
 	}
 
 	return (
 		<>
-			<FilterByText onChange={({ text }): void => setText(text)} />
-			{value?.statuses.length === 0 && (
-				<States>
-					<StatesIcon name='magnifier' />
-					<StatesTitle>{t('No_results_found')}</StatesTitle>
-				</States>
-			)}
-			{value?.statuses && value.statuses.length > 0 && (
+			<FilterByText value={text} onChange={(event) => setText(event.target.value)} />
+			{data.length === 0 && <GenericNoResult />}
+			{data && data.length > 0 && (
 				<>
 					<GenericTable>
 						<GenericTableHeader>
@@ -79,17 +89,15 @@ const CustomUserStatus = ({ reload, onClick }: CustomUserStatusProps): ReactElem
 							</GenericTableHeaderCell>
 						</GenericTableHeader>
 						<GenericTableBody>
-							{phase === AsyncStatePhase.LOADING && <GenericTableLoadingTable headerCells={2} />}
-							{value?.statuses.map((status) => (
-								<CustomUserStatusRow key={status._id} status={status} onClick={onClick} />
-							))}
+							{isLoading && <GenericTableLoadingTable headerCells={2} />}
+							{data?.map((status) => <CustomUserStatusRow key={status._id} status={status} onClick={onClick} />)}
 						</GenericTableBody>
 					</GenericTable>
-					{phase === AsyncStatePhase.RESOLVED && (
+					{isFetched && (
 						<Pagination
 							current={current}
 							itemsPerPage={itemsPerPage}
-							count={value?.total || 0}
+							count={data.length}
 							onSetItemsPerPage={onSetItemsPerPage}
 							onSetCurrent={onSetCurrent}
 							{...paginationProps}

@@ -1,7 +1,7 @@
-import { expect } from 'chai';
 import { escapeHTML } from '@rocket.chat/string-helpers';
+import { expect } from 'chai';
 
-import { Markdown, original, filtered } from './client.mocks.js';
+import { Markdown, original, filtered } from './client.mocks';
 
 const wrapper = (text, tag) => `<span class="copyonly">${tag}</span>${text}<span class="copyonly">${tag}</span>`;
 const boldWrapper = (text) => wrapper(`<strong>${text}</strong>`, '*');
@@ -412,7 +412,7 @@ const testObject = (object, parser = original, test = defaultObjectTest) => {
 	});
 };
 
-describe('Original', function () {
+describe('Original', () => {
 	describe('Bold', () => testObject(bold));
 
 	describe('Italic', () => testObject(italic));
@@ -440,7 +440,7 @@ describe('Original', function () {
 	describe('Nested', () => testObject(nested));
 });
 
-describe('Filtered', function () {
+describe('Filtered', () => {
 	describe('BoldFilter', () => testObject(boldFiltered, filtered));
 
 	describe('Italic', () => testObject(italicFiltered, filtered));

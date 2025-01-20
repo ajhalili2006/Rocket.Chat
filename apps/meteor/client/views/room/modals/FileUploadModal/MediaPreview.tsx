@@ -1,12 +1,12 @@
-import { Box, Icon } from '@rocket.chat/fuselage';
-import { useTranslation } from '@rocket.chat/ui-contexts';
+import { AudioPlayer, Box, Icon } from '@rocket.chat/fuselage';
 import type { ReactElement } from 'react';
-import React, { useEffect, useState, memo } from 'react';
+import { useEffect, useState, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { userAgentMIMETypeFallback } from '../../../../lib/utils/userAgentMIMETypeFallback';
 import { FilePreviewType } from './FilePreview';
 import ImagePreview from './ImagePreview';
 import PreviewSkeleton from './PreviewSkeleton';
+import { userAgentMIMETypeFallback } from '../../../../lib/utils/userAgentMIMETypeFallback';
 
 type ReaderOnloadCallback = (url: FileReader['result']) => void;
 
@@ -38,7 +38,7 @@ type MediaPreviewProps = {
 
 const MediaPreview = ({ file, fileType }: MediaPreviewProps): ReactElement => {
 	const [loaded, url] = useFileAsDataURL(file);
-	const t = useTranslation();
+	const { t } = useTranslation();
 
 	if (!loaded) {
 		return <PreviewSkeleton />;
@@ -47,7 +47,7 @@ const MediaPreview = ({ file, fileType }: MediaPreviewProps): ReactElement => {
 	if (typeof url !== 'string') {
 		return (
 			<Box display='flex' alignItems='center' w='full'>
-				<Icon name='image' size='x24' mie='x4' />
+				<Icon name='image' size='x24' mie={4} />
 				{t('FileUpload_Cannot_preview_file')}
 			</Box>
 		);
@@ -67,12 +67,7 @@ const MediaPreview = ({ file, fileType }: MediaPreviewProps): ReactElement => {
 	}
 
 	if (fileType === FilePreviewType.AUDIO) {
-		return (
-			<Box is='audio' w='full' controls>
-				<source src={url} type={file.type} />
-				{t('Browser_does_not_support_audio_element')}
-			</Box>
-		);
+		return <AudioPlayer src={url} />;
 	}
 
 	throw new Error('Wrong props provided for MediaPreview');

@@ -1,8 +1,7 @@
-import type { ComponentMeta, ComponentStory } from '@storybook/react';
-import React from 'react';
+import type { Meta, StoryFn } from '@storybook/react';
 
-import VerticalBar from '../../../../components/VerticalBar/VerticalBar';
 import ExportMessages from './index';
+import { Contextualbar } from '../../../../components/Contextualbar';
 
 export default {
 	title: 'Room/Contextual Bar/ExportMessages',
@@ -10,8 +9,8 @@ export default {
 	parameters: {
 		layout: 'fullscreen',
 	},
-	decorators: [(fn) => <VerticalBar height='100vh'>{fn()}</VerticalBar>],
-} as ComponentMeta<typeof ExportMessages>;
+	decorators: [(fn) => <Contextualbar height='100vh'>{fn()}</Contextualbar>],
+} satisfies Meta<typeof ExportMessages>;
 
-export const Default: ComponentStory<typeof ExportMessages> = (args) => <ExportMessages {...args} />;
+export const Default: StoryFn<typeof ExportMessages> = () => <ExportMessages />;
 Default.storyName = 'ExportMessages';
