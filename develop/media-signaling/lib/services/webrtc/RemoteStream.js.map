@@ -1,0 +1,1 @@
+{"version":3,"file":"RemoteStream.js","sourceRoot":"","sources":["../../../../src/lib/services/webrtc/RemoteStream.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,MAAM,EAAE,MAAM,UAAU,CAAC;AAElC,MAAM,OAAO,YAAa,SAAQ,MAAM;IAChC,QAAQ,CAAC,QAA0B;QACzC,IAAI,CAAC,aAAa,CAAC,QAAQ,CAAC,CAAC;IAC9B,CAAC;CACD"}
