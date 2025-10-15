@@ -18,6 +18,12 @@ export class MediaCallWebRTCProcessor {
     get held() {
         return this._held;
     }
+    get audioLevel() {
+        return this._audioLevel;
+    }
+    get localAudioLevel() {
+        return this._localAudioLevel;
+    }
     constructor(config) {
         this.config = config;
         this.iceGatheringFinished = false;
@@ -33,11 +39,15 @@ export class MediaCallWebRTCProcessor {
         this.remoteMediaStream = new MediaStream();
         this.iceGatheringWaiters = new Set();
         this.inputTrack = config.inputTrack;
+        this._audioLevel = 0;
+        this._localAudioLevel = 0;
+        this._audioLevelTracker = null;
         this.peer = new RTCPeerConnection(config.rtc);
         this.localStream = new LocalStream(this.localMediaStream, this.peer, this.config.logger);
         this.remoteStream = new RemoteStream(this.remoteMediaStream, this.peer, this.config.logger);
         this.emitter = new Emitter();
         this.registerPeerEvents();
+        this.registerAudioLevelTracker();
     }
     getRemoteMediaStream() {
         return this.remoteMediaStream;
@@ -105,6 +115,7 @@ export class MediaCallWebRTCProcessor {
         // Stop only the remote stream; the track of the local stream may still be in use by another call so it's up to the session to stop it.
         this.remoteStream.stopAudio();
         this.unregisterPeerEvents();
+        this.unregisterAudioLevelTracker();
         this.peer.close();
     }
     startNewNegotiation() {
@@ -171,6 +182,14 @@ export class MediaCallWebRTCProcessor {
                 }
                 return this.iceGatheringWaiters.size > 0 ? 'waiting' : 'not-waiting';
         }
+    }
+    getStats(selector) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.stopped) {
+                return null;
+            }
+            return this.peer.getStats(selector);
+        });
     }
     changeInternalState(stateName) {
         var _a;
@@ -254,6 +273,46 @@ export class MediaCallWebRTCProcessor {
         catch (_a) {
             // suppress exceptions here
         }
+    }
+    registerAudioLevelTracker() {
+        if (this._audioLevelTracker) {
+            this.unregisterAudioLevelTracker();
+        }
+        this._audioLevelTracker = setInterval(() => {
+            this.getStats()
+                .then((stats) => {
+                if (!stats) {
+                    return;
+                }
+                stats.forEach((report) => {
+                    var _a, _b;
+                    if (report.kind !== 'audio') {
+                        return;
+                    }
+                    switch (report.type) {
+                        case 'inbound-rtp':
+                            this._audioLevel = (_a = report.audioLevel) !== null && _a !== void 0 ? _a : 0;
+                            break;
+                        case 'media-source':
+                            this._localAudioLevel = (_b = report.audioLevel) !== null && _b !== void 0 ? _b : 0;
+                            break;
+                    }
+                });
+            })
+                .catch(() => {
+                this._audioLevel = 0;
+                this._localAudioLevel = 0;
+            });
+        }, 50);
+    }
+    unregisterAudioLevelTracker() {
+        if (!this._audioLevelTracker) {
+            return;
+        }
+        clearInterval(this._audioLevelTracker);
+        this._audioLevelTracker = null;
+        this._audioLevel = 0;
+        this._localAudioLevel = 0;
     }
     restartIce() {
         var _a;

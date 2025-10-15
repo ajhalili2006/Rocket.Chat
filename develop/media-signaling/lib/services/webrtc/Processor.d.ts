@@ -22,6 +22,11 @@ export declare class MediaCallWebRTCProcessor implements IWebRTCProcessor {
     private iceCandidateCount;
     private lastSetLocalDescription;
     private addedEmptyTransceiver;
+    private _audioLevelTracker;
+    private _audioLevel;
+    get audioLevel(): number;
+    private _localAudioLevel;
+    get localAudioLevel(): number;
     constructor(config: WebRTCProcessorConfig);
     getRemoteMediaStream(): MediaStream;
     setInputTrack(newInputTrack: MediaStreamTrack | null): Promise<void>;
@@ -43,11 +48,14 @@ export declare class MediaCallWebRTCProcessor implements IWebRTCProcessor {
         sdp: RTCSessionDescriptionInit;
     }): Promise<void>;
     getInternalState<K extends keyof WebRTCInternalStateMap>(stateName: K): ServiceStateValue<WebRTCInternalStateMap, K>;
+    getStats(selector?: MediaStreamTrack | null): Promise<RTCStatsReport | null>;
     private changeInternalState;
     private getLocalDescription;
     private waitForIceGathering;
     private registerPeerEvents;
     private unregisterPeerEvents;
+    private registerAudioLevelTracker;
+    private unregisterAudioLevelTracker;
     private restartIce;
     private onIceCandidate;
     private onIceCandidateError;

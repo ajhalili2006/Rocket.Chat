@@ -33,6 +33,9 @@ export interface IWebRTCProcessor extends IServiceProcessor<WebRTCInternalStateM
         sdp: RTCSessionDescriptionInit;
     }): Promise<void>;
     getRemoteMediaStream(): MediaStream;
+    audioLevel: number;
+    localAudioLevel: number;
+    getStats(selector?: MediaStreamTrack | null): Promise<RTCStatsReport | null>;
 }
 export type WebRTCProcessorConfig = {
     call: IClientMediaCall;

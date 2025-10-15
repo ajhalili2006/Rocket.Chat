@@ -40,6 +40,9 @@ export class ClientMediaCall {
     get contact() {
         return this._contact || {};
     }
+    get transferredBy() {
+        return this._transferredBy;
+    }
     get service() {
         return this._service;
     }
@@ -65,6 +68,14 @@ export class ClientMediaCall {
     /** indicates the call is past the "dialing" stage and not yet over */
     get busy() {
         return !this.isPendingAcceptance() && !this.isOver();
+    }
+    get audioLevel() {
+        var _a;
+        return ((_a = this.webrtcProcessor) === null || _a === void 0 ? void 0 : _a.audioLevel) || 0;
+    }
+    get localAudioLevel() {
+        var _a;
+        return ((_a = this.webrtcProcessor) === null || _a === void 0 ? void 0 : _a.localAudioLevel) || 0;
     }
     constructor(config, callId, { inputTrack } = {}) {
         this.config = config;
@@ -95,6 +106,7 @@ export class ClientMediaCall {
         this.oldClientState = 'none';
         this._ignored = false;
         this._contact = null;
+        this._transferredBy = null;
         this._service = null;
     }
     /**
@@ -153,6 +165,7 @@ export class ClientMediaCall {
             this.hasRemoteData = true;
             this._service = signal.service;
             this._role = signal.role;
+            this._transferredBy = signal.transferredBy || null;
             this.changeContact(signal.contact);
             if (this._role === 'caller' && !this.acceptedLocally) {
                 if (oldCall) {
@@ -469,6 +482,12 @@ export class ClientMediaCall {
         this.config.transporter.sendToServer(this.callId, 'dtmf', {
             dtmf,
             duration,
+        });
+    }
+    getStats(selector) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
+            return (_b = (_a = this.webrtcProcessor) === null || _a === void 0 ? void 0 : _a.getStats(selector)) !== null && _b !== void 0 ? _b : null;
         });
     }
     changeState(newState) {
