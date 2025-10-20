@@ -9,8 +9,8 @@ export class MediaSignalTransportWrapper {
         (_a = this.logger) === null || _a === void 0 ? void 0 : _a.debug('MediaSignalTransportWrapper.sendToServer', type);
         return this.sendSignal(Object.assign(Object.assign(Object.assign({}, (type !== 'register' && { callId })), { contractId: this.contractId, type }), signal));
     }
-    sendError(callId, { errorType, errorCode, negotiationId }) {
-        this.sendToServer(callId, 'error', Object.assign(Object.assign({ errorType: errorType || 'other' }, (errorCode && { errorCode })), (negotiationId && { negotiationId })));
+    sendError(callId, { errorType, errorCode, negotiationId, critical, errorDetails }) {
+        this.sendToServer(callId, 'error', Object.assign(Object.assign(Object.assign(Object.assign({ errorType: errorType || 'other' }, (errorCode && { errorCode })), (negotiationId && { negotiationId })), (critical ? { critical } : { critical: false })), (errorDetails && { errorDetails })));
     }
     answer(callId, answer) {
         return this.sendToServer(callId, 'answer', { answer });

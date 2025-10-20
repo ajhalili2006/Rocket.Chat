@@ -28,6 +28,14 @@ export const clientMediaSignalErrorSchema = {
             type: 'string',
             nullable: true,
         },
+        critical: {
+            type: 'boolean',
+            nullable: true,
+        },
+        errorDetails: {
+            type: 'string',
+            nullable: true,
+        },
     },
     additionalProperties: false,
     required: ['callId', 'contractId', 'type'],

@@ -15,6 +15,7 @@ export type ServiceProcessorEvents<ServiceStateMap extends DefaultServiceStateMa
     internalError: {
         critical: boolean;
         error: string | Error;
+        errorDetails?: string;
     };
     negotiationNeeded: void;
 };

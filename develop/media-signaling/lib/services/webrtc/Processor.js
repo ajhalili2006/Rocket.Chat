@@ -335,7 +335,7 @@ export class MediaCallWebRTCProcessor {
         }
         (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('MediaCallWebRTCProcessor.onIceCandidateError');
         (_b = this.config.logger) === null || _b === void 0 ? void 0 : _b.error(event);
-        this.emitter.emit('internalError', { critical: false, error: 'ice-candidate-error' });
+        this.emitter.emit('internalError', { critical: false, error: 'ice-candidate-error', errorDetails: JSON.stringify(event) });
     }
     onNegotiationNeeded() {
         var _a;

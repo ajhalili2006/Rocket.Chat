@@ -7,7 +7,7 @@ export declare class MediaSignalTransportWrapper {
     private logger?;
     constructor(contractId: string, sendSignalFn: MediaSignalTransport<ClientMediaSignal>, logger?: IMediaSignalLogger | undefined);
     sendToServer<T extends ClientMediaSignalType>(callId: string, type: T, signal: ClientMediaSignalBody<T>): void;
-    sendError(callId: string, { errorType, errorCode, negotiationId }: Partial<ClientMediaSignalError>): void;
+    sendError(callId: string, { errorType, errorCode, negotiationId, critical, errorDetails }: Partial<ClientMediaSignalError>): void;
     answer(callId: string, answer: CallAnswer): void;
     hangup(callId: string, reason: CallHangupReason): void;
     requestRenegotiation(callId: string, oldNegotiationId: string): void;

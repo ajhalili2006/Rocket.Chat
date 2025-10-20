@@ -7,6 +7,8 @@ export type ClientMediaSignalError = {
     errorType?: 'signaling' | 'service' | 'other';
     errorCode?: string;
     negotiationId?: string;
+    critical?: boolean;
+    errorDetails?: string;
 };
 export declare const clientMediaSignalErrorSchema: JSONSchemaType<ClientMediaSignalError>;
 //# sourceMappingURL=error.d.ts.map
