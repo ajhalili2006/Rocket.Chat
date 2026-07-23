@@ -1,4 +1,4 @@
-import type { CallContact, CallRole, CallService } from '../../call';
+import type { CallContact, CallRole, CallService, CallFlag } from '../../call';
 /** Sent by the server to notify an agent that there's a new call for their actor */
 export type ServerMediaSignalNewCall = {
     callId: string;
@@ -14,5 +14,6 @@ export type ServerMediaSignalNewCall = {
     replacingCallId?: string;
     /** If this new call initiated from a transfer, this will hold the information of the user who requested the transfer */
     transferredBy?: CallContact;
+    flags?: CallFlag[];
 };
 //# sourceMappingURL=new.d.ts.map

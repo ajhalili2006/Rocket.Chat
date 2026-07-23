@@ -1,3 +1,4 @@
+import { callAnswerList, callFeatureList } from '../../call/IClientMediaCall';
 export const clientMediaSignalAnswerSchema = {
     type: 'object',
     properties: {
@@ -17,8 +18,17 @@ export const clientMediaSignalAnswerSchema = {
         },
         answer: {
             type: 'string',
-            enum: ['accept', 'reject', 'ack', 'unavailable'],
+            enum: callAnswerList,
             nullable: false,
+        },
+        supportedFeatures: {
+            type: 'array',
+            items: {
+                type: 'string',
+                enum: callFeatureList,
+                nullable: false,
+            },
+            nullable: true,
         },
     },
     additionalProperties: false,

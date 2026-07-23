@@ -14,6 +14,10 @@ export const clientMediaSignalRegisterSchema = {
             type: 'string',
             nullable: true,
         },
+        requestSignals: {
+            type: 'boolean',
+            nullable: true,
+        },
     },
     additionalProperties: false,
     required: ['contractId', 'type'],

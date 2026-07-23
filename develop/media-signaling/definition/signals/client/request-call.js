@@ -1,3 +1,4 @@
+import { callFeatureList } from '../../call/IClientMediaCall';
 export const clientMediaSignalRequestCallSchema = {
     type: 'object',
     properties: {
@@ -40,6 +41,15 @@ export const clientMediaSignalRequestCallSchema = {
                 nullable: false,
             },
             nullable: false,
+        },
+        supportedFeatures: {
+            type: 'array',
+            items: {
+                type: 'string',
+                enum: callFeatureList,
+                nullable: false,
+            },
+            nullable: true,
         },
     },
     additionalProperties: false,

@@ -1,1 +1,1 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../src/definition/signals/index.ts"],"names":[],"mappings":"AAAA,cAAc,UAAU,CAAC;AACzB,cAAc,UAAU,CAAC;AACzB,cAAc,aAAa,CAAC"}
+{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../src/definition/signals/index.ts"],"names":[],"mappings":"AAAA,cAAc,UAAU,CAAC;AACzB,mBAAmB,UAAU,CAAC;AAC9B,mBAAmB,aAAa,CAAC"}

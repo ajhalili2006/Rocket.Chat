@@ -1,5 +1,5 @@
 import type { JSONSchemaType } from 'ajv';
-import type { CallService } from '../../call';
+import type { CallFeature, CallService } from '../../call';
 export type ClientMediaSignalRequestCall = {
     /** the callId on this signal is temporary and is never propagated to other agents */
     callId: string;
@@ -10,6 +10,7 @@ export type ClientMediaSignalRequestCall = {
         id: string;
     };
     supportedServices: CallService[];
+    supportedFeatures?: CallFeature[];
 };
 export declare const clientMediaSignalRequestCallSchema: JSONSchemaType<ClientMediaSignalRequestCall>;
 //# sourceMappingURL=request-call.d.ts.map

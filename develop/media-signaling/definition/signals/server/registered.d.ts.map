@@ -1,0 +1,1 @@
+{"version":3,"file":"registered.d.ts","sourceRoot":"","sources":["../../../../src/definition/signals/server/registered.ts"],"names":[],"mappings":"AAAA,yEAAyE;AACzE,MAAM,MAAM,2BAA2B,GAAG;IACzC,IAAI,EAAE,YAAY,CAAC;IAEnB,YAAY,EAAE,MAAM,CAAC;IAErB,KAAK,EAAE,MAAM,EAAE,CAAC;IAEhB,WAAW,EAAE,MAAM,EAAE,CAAC;CACtB,CAAC"}

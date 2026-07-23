@@ -6,10 +6,13 @@ export type CallEvents = {
     trackStateChange: void;
     contactUpdate: void;
     initialized: void;
+    confirmed: void;
     accepting: void;
     accepted: void;
     active: void;
     hidden: void;
     ended: void;
+    screenShareRequestChange: boolean;
+    streamChange: void;
 };
 //# sourceMappingURL=CallEvents.d.ts.map

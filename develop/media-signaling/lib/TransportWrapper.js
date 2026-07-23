@@ -12,8 +12,8 @@ export class MediaSignalTransportWrapper {
     sendError(callId, { errorType, errorCode, negotiationId, critical, errorDetails }) {
         this.sendToServer(callId, 'error', Object.assign(Object.assign(Object.assign(Object.assign({ errorType: errorType || 'other' }, (errorCode && { errorCode })), (negotiationId && { negotiationId })), (critical ? { critical } : { critical: false })), (errorDetails && { errorDetails })));
     }
-    answer(callId, answer) {
-        return this.sendToServer(callId, 'answer', { answer });
+    answer(callId, answer, extraData = {}) {
+        return this.sendToServer(callId, 'answer', Object.assign({ answer }, extraData));
     }
     hangup(callId, reason) {
         return this.sendToServer(callId, 'hangup', { reason });

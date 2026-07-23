@@ -1,0 +1,47 @@
+import { Emitter } from '@rocket.chat/emitter';
+import type { IMediaSignalLogger } from '../../definition/logger';
+import type { IMediaStreamWrapper, MediaStreamEvents } from '../../definition/media/IMediaStreamWrapper';
+export declare class MediaStreamWrapper implements IMediaStreamWrapper {
+    readonly tag: string;
+    private readonly peer;
+    private readonly logger?;
+    readonly emitter: Emitter<MediaStreamEvents>;
+    readonly remote: boolean;
+    get local(): boolean;
+    readonly stream: MediaStream;
+    get localId(): string;
+    private _active;
+    get active(): boolean;
+    private audioEnabled;
+    private audioTrack;
+    private videoTrack;
+    private audioSender;
+    private videoSender;
+    private stopped;
+    private remoteIds;
+    private _trackingAudioStats;
+    private _audioLevel;
+    get audioLevel(): number;
+    constructor(remote: boolean, tag: string, peer: RTCPeerConnection, logger?: IMediaSignalLogger | undefined);
+    hasAudio(): boolean;
+    hasVideo(): boolean;
+    isAudioMutedBySystem(): boolean;
+    isAudioEnabled(): boolean;
+    isStopped(): boolean;
+    setAudioEnabled(enabled: boolean): void;
+    setActive(active: boolean): void;
+    stop(): void;
+    setTrack(kind: MediaStreamTrack['kind'], track: MediaStreamTrack | null): Promise<void>;
+    addRemoteId(id: string): void;
+    hasRemoteId(id: string): boolean;
+    private getTracks;
+    private removeTracks;
+    private replaceTrack;
+    private syncTrackChange;
+    private wrapTrack;
+    private isSameTrack;
+    private getWrappedTrack;
+    private registerAudioLevelTracker;
+    private collectAudioStats;
+}
+//# sourceMappingURL=MediaStreamWrapper.d.ts.map

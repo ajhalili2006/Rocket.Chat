@@ -1,3 +1,4 @@
+import { callHangupReasonList } from '../../call';
 export const clientMediaSignalHangupSchema = {
     type: 'object',
     properties: {
@@ -17,21 +18,7 @@ export const clientMediaSignalHangupSchema = {
         },
         reason: {
             type: 'string',
-            enum: [
-                'normal',
-                'remote',
-                'rejected',
-                'unavailable',
-                'transfer',
-                'timeout',
-                'signaling-error',
-                'service-error',
-                'media-error',
-                'input-error',
-                'error',
-                'unknown',
-                'another-client',
-            ],
+            enum: callHangupReasonList,
             nullable: false,
         },
     },

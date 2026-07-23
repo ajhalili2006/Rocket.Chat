@@ -1,1 +1,1 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../../src/definition/signals/server/index.ts"],"names":[],"mappings":"AAAA,cAAc,OAAO,CAAC;AACtB,cAAc,gBAAgB,CAAC;AAC/B,cAAc,yBAAyB,CAAC;AACxC,cAAc,cAAc,CAAC;AAC7B,cAAc,iBAAiB,CAAC;AAEhC,cAAc,eAAe,CAAC"}
+{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../../../src/definition/signals/server/index.ts"],"names":[],"mappings":"AAAA,mBAAmB,OAAO,CAAC;AAC3B,mBAAmB,gBAAgB,CAAC;AACpC,mBAAmB,cAAc,CAAC;AAClC,mBAAmB,yBAAyB,CAAC;AAC7C,mBAAmB,cAAc,CAAC;AAClC,mBAAmB,iBAAiB,CAAC;AAErC,mBAAmB,eAAe,CAAC"}

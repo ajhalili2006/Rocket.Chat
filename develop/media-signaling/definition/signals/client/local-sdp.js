@@ -36,6 +36,25 @@ export const clientMediaSignalLocalSDPSchema = {
             type: 'string',
             nullable: false,
         },
+        streams: {
+            type: 'array',
+            nullable: true,
+            items: {
+                type: 'object',
+                properties: {
+                    tag: {
+                        type: 'string',
+                        minLength: 1,
+                    },
+                    id: {
+                        type: 'string',
+                        minLength: 1,
+                    },
+                },
+                additionalProperties: false,
+                required: ['tag', 'id'],
+            },
+        },
     },
     additionalProperties: false,
     required: ['callId', 'contractId', 'type', 'sdp', 'negotiationId'],

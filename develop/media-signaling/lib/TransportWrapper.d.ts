@@ -1,4 +1,4 @@
-import type { CallAnswer, CallHangupReason } from '../definition';
+import type { CallAnswer, CallFeature, CallHangupReason } from '../definition';
 import type { IMediaSignalLogger } from '../definition/logger';
 import type { MediaSignalTransport, ClientMediaSignalType, ClientMediaSignalBody, ClientMediaSignal, ClientMediaSignalError } from '../definition/signals';
 export declare class MediaSignalTransportWrapper {
@@ -8,7 +8,9 @@ export declare class MediaSignalTransportWrapper {
     constructor(contractId: string, sendSignalFn: MediaSignalTransport<ClientMediaSignal>, logger?: IMediaSignalLogger | undefined);
     sendToServer<T extends ClientMediaSignalType>(callId: string, type: T, signal: ClientMediaSignalBody<T>): void;
     sendError(callId: string, { errorType, errorCode, negotiationId, critical, errorDetails }: Partial<ClientMediaSignalError>): void;
-    answer(callId: string, answer: CallAnswer): void;
+    answer(callId: string, answer: CallAnswer, extraData?: {
+        supportedFeatures?: CallFeature[];
+    }): void;
     hangup(callId: string, reason: CallHangupReason): void;
     requestRenegotiation(callId: string, oldNegotiationId: string): void;
     sendSignal(signal: ClientMediaSignal): void;

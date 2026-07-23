@@ -1,3 +1,5 @@
+import { callStateList } from '../../call';
+import { clientContractStateList, clientStateList } from '../../client';
 export const clientMediaSignalLocalStateSchema = {
     type: 'object',
     properties: {
@@ -17,25 +19,12 @@ export const clientMediaSignalLocalStateSchema = {
         },
         callState: {
             type: 'string',
-            enum: ['none', 'ringing', 'accepted', 'active', 'renegotiating', 'hangup'],
+            enum: callStateList,
             nullable: false,
         },
         clientState: {
             type: 'string',
-            enum: [
-                'none',
-                'pending',
-                'accepting',
-                'accepted',
-                'busy-elsewhere',
-                'has-offer',
-                'has-answer',
-                'active',
-                'renegotiating',
-                'has-new-offer',
-                'has-new-answer',
-                'hangup',
-            ],
+            enum: clientStateList,
             nullable: false,
         },
         serviceStates: {
@@ -54,7 +43,7 @@ export const clientMediaSignalLocalStateSchema = {
         },
         contractState: {
             type: 'string',
-            enum: ['proposed', 'signed', 'pre-signed', 'self-signed', 'ignored'],
+            enum: clientContractStateList,
             nullable: false,
         },
         negotiationId: {

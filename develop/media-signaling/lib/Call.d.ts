@@ -1,17 +1,22 @@
 import { Emitter } from '@rocket.chat/emitter';
 import type { MediaSignalTransportWrapper } from './TransportWrapper';
 import type { ClientMediaSignalError, IServiceProcessorFactoryList } from '../definition';
-import type { IClientMediaCall, CallEvents, CallContact, CallRole, CallState, CallService, CallHangupReason, CallActorType } from '../definition/call';
+import type { IClientMediaCall, CallEvents, CallContact, CallRole, CallState, CallService, CallHangupReason, CallActorType, CallFlag, CallFeature, IClientMediaCallLocalParticipant, IClientMediaCallRemoteParticipant, AnyClientMediaCallParticipant } from '../definition/call';
+import type { AnyMediaCallData } from '../definition/call/callStates';
 import type { ClientState } from '../definition/client';
 import type { IMediaSignalLogger } from '../definition/logger';
+import type { MediaStreamIdentification, IMediaStreamWrapper } from '../definition/media';
 import type { IWebRTCProcessor } from '../definition/services';
 import type { ServerMediaSignal, ServerMediaSignalNewCall, ServerMediaSignalRemoteSDP, ServerMediaSignalRequestOffer } from '../definition/signals/server';
 export interface IClientMediaCallConfig {
+    userId: string;
     logger?: IMediaSignalLogger;
     transporter: MediaSignalTransportWrapper;
     processorFactories: IServiceProcessorFactoryList;
     sessionId: string;
     iceGatheringTimeout: number;
+    iceServers: RTCIceServer[];
+    supportedFeatures: CallFeature[];
 }
 export declare class ClientMediaCall implements IClientMediaCall {
     private readonly config;
@@ -34,15 +39,23 @@ export declare class ClientMediaCall implements IClientMediaCall {
     get muted(): boolean;
     /** indicates if the call is on hold */
     get held(): boolean;
+    private _remoteHeld;
+    get remoteHeld(): boolean;
+    private _remoteMute;
+    get remoteMute(): boolean;
     /** indicates the call is past the "dialing" stage and not yet over */
     get busy(): boolean;
+    get confirmed(): boolean;
+    get tempCallId(): string;
+    private _activeTimestamp;
+    get activeTimestamp(): Date | undefined;
     protected webrtcProcessor: IWebRTCProcessor | null;
     private acceptedLocally;
+    private acceptedRemotely;
     private endedLocally;
     private hasRemoteData;
-    private hasLocalDescription;
-    private hasRemoteDescription;
-    private initialized;
+    private _initialized;
+    get initialized(): boolean;
     private acknowledged;
     private earlySignals;
     private stateTimeoutHandlers;
@@ -53,13 +66,23 @@ export declare class ClientMediaCall implements IClientMediaCall {
     private mayReportStates;
     private contractState;
     private inputTrack;
+    private screenVideoTrack;
     /** localCallId will only be different on calls initiated by this session */
     private localCallId;
-    private currentNegotiationId;
     private creationTimestamp;
-    private pendingAnswerRequest;
-    get audioLevel(): number;
-    get localAudioLevel(): number;
+    private negotiationManager;
+    private sentLocalSdp;
+    private receivedRemoteSdp;
+    private enabledFeatures;
+    private _flags;
+    get flags(): CallFlag[];
+    get features(): CallFeature[];
+    readonly localParticipant: IClientMediaCallLocalParticipant;
+    private selfContact;
+    private remoteParticipant;
+    get remoteParticipants(): IClientMediaCallRemoteParticipant[];
+    get participants(): AnyClientMediaCallParticipant[];
+    get callStateData(): AnyMediaCallData;
     constructor(config: IClientMediaCallConfig, callId: string, { inputTrack }?: {
         inputTrack?: MediaStreamTrack | null;
     });
@@ -72,7 +95,7 @@ export declare class ClientMediaCall implements IClientMediaCall {
     requestCall(callee: {
         type: CallActorType;
         id: string;
-    }, contactInfo?: CallContact): Promise<void>;
+    }, supportedFeatures: CallFeature[], contactInfo?: CallContact): Promise<void>;
     /** initialize a call with the data received from the server on a 'new' signal; this gets executed once for every call */
     initializeRemoteCall(signal: ServerMediaSignalNewCall, oldCall?: ClientMediaCall | null): Promise<void>;
     mayNeedInputTrack(): boolean;
@@ -81,7 +104,11 @@ export declare class ClientMediaCall implements IClientMediaCall {
     isMissingInputTrack(): boolean;
     getClientState(): ClientState;
     setInputTrack(newInputTrack: MediaStreamTrack | null): Promise<void>;
-    getRemoteMediaStream(): MediaStream;
+    setScreenVideoTrack(newVideoTrack: MediaStreamTrack | null): Promise<void>;
+    canHaveScreenVideoTrack(): boolean;
+    hasScreenVideoTrack(): boolean;
+    getLocalMediaStream(tag?: string): IMediaStreamWrapper | null;
+    getRemoteMediaStream(tag?: string): IMediaStreamWrapper | null;
     processSignal(signal: ServerMediaSignal, oldCall?: ClientMediaCall | null): Promise<void>;
     accept(): void;
     reject(): void;
@@ -97,10 +124,14 @@ export declare class ClientMediaCall implements IClientMediaCall {
     ignore(): void;
     setMuted(muted: boolean): void;
     setHeld(held: boolean): void;
+    requestScreenShare(requested: boolean): void;
     setContractState(state: 'signed' | 'ignored'): void;
     reportStates(): void;
     sendDTMF(dtmf: string, duration?: number): void;
     getStats(selector?: MediaStreamTrack | null): Promise<RTCStatsReport | null>;
+    isFeatureAvailable(feature: CallFeature): boolean;
+    hasFlag(flag: CallFlag): boolean;
+    private canChangeToState;
     private changeState;
     private updateClientState;
     private maybeStopWebRTC;
@@ -113,7 +144,8 @@ export declare class ClientMediaCall implements IClientMediaCall {
     protected deliverSdp(data: {
         sdp: RTCSessionDescriptionInit;
         negotiationId: string;
-    }): Promise<void>;
+    }): void;
+    protected getLocalStreamIds(): MediaStreamIdentification[];
     protected rejectAsUnavailable(): Promise<void>;
     protected processEarlySignals(): Promise<void>;
     protected acknowledge(): void;
@@ -121,16 +153,24 @@ export declare class ClientMediaCall implements IClientMediaCall {
     private flagAsAccepted;
     private flagAsEnded;
     private addStateTimeout;
+    private getTimeoutHangupReason;
+    private resetStateTimeouts;
     private updateStateTimeouts;
     private clearStateTimeouts;
+    private updateRemoteStates;
     private onWebRTCInternalStateChange;
-    private onWebRTCInternalError;
-    private onWebRTCNegotiationNeeded;
+    private onWebRTCStreamChanged;
+    private onNegotiationNeeded;
+    private onNegotiationStarted;
+    private onNegotiationError;
     private onWebRTCConnectionStateChange;
     private clearStateReporter;
     private requestStateReport;
     private throwError;
     private isSignalTargetingThisSession;
+    private createLocalParticipantProxy;
+    private createRemoteParticipantProxy;
+    private mayUseStreams;
     private prepareWebRtcProcessor;
     private requireWebRTC;
 }
