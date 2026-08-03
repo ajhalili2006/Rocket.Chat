@@ -53,6 +53,7 @@ export declare class MediaCallWebRTCProcessor implements IWebRTCProcessor {
     private updateVideoDirectionAfterNegotiation;
     private updateDirectionBeforeNegotiation;
     private updateDirectionAfterNegotiation;
+    private reactToStoppedTransceiver;
     private requestDirection;
     private updateDirectionForVideoTrackChanged;
     private getTransceivers;

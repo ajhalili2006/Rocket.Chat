@@ -381,20 +381,22 @@ export class ClientMediaCall {
     }
     setScreenVideoTrack(newVideoTrack) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c;
+            var _a, _b;
             (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('ClientMediaCall.setScreenVideoTrack', Boolean(newVideoTrack));
             if (newVideoTrack && !this.canHaveScreenVideoTrack()) {
                 newVideoTrack.stop();
                 newVideoTrack = null;
             }
             const hadVideoTrack = this.hasScreenVideoTrack();
-            if (hadVideoTrack && newVideoTrack !== this.screenVideoTrack) {
-                (_b = this.config.logger) === null || _b === void 0 ? void 0 : _b.debug('ClientMediaCall.setScreenVideoTrack.stopOldTrack');
-                (_c = this.screenVideoTrack) === null || _c === void 0 ? void 0 : _c.stop();
-            }
+            const oldVideoTrack = this.screenVideoTrack;
             this.screenVideoTrack = newVideoTrack;
             if (this.webrtcProcessor) {
                 yield this.webrtcProcessor.setScreenVideoTrack(newVideoTrack);
+            }
+            // Only stop the track after we replaced it on the transceiver, as we don't want the transceiver to stop if there's another track
+            if (hadVideoTrack && newVideoTrack !== oldVideoTrack) {
+                (_b = this.config.logger) === null || _b === void 0 ? void 0 : _b.debug('ClientMediaCall.setScreenVideoTrack.stopOldTrack');
+                oldVideoTrack === null || oldVideoTrack === void 0 ? void 0 : oldVideoTrack.stop();
             }
             if (newVideoTrack && !hadVideoTrack) {
                 yield this.negotiationManager.processNegotiations();

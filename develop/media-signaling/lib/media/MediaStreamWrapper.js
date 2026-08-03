@@ -30,8 +30,8 @@ export class MediaStreamWrapper {
         this.audioEnabled = true;
         this.audioTrack = null;
         this.videoTrack = null;
-        this.audioSender = null;
-        this.videoSender = null;
+        this.audioTransceiver = null;
+        this.videoTransceiver = null;
         this.stopped = false;
         this.remote = remote;
         this.stream = new MediaStream();
@@ -149,35 +149,67 @@ export class MediaStreamWrapper {
             this.emitter.emit('trackChanged', { track: newTrack, kind });
         });
     }
+    getCurrentTransceiver(kind) {
+        const transceiver = kind === 'audio' ? this.audioTransceiver : this.videoTransceiver;
+        if (!transceiver) {
+            return null;
+        }
+        // transceiver.stopped is not available on safari
+        if ('stopped' in transceiver && transceiver.stopped) {
+            return null;
+        }
+        if (transceiver.currentDirection === 'stopped' || transceiver.direction === 'stopped') {
+            return null;
+        }
+        return transceiver;
+    }
+    setCurrentTransceiver(kind, transceiver) {
+        var _a;
+        const oldTransceiver = kind === 'audio' ? this.audioTransceiver : this.videoTransceiver;
+        if ((!oldTransceiver && !transceiver) || oldTransceiver === transceiver) {
+            return;
+        }
+        const action = transceiver ? 'Changed' : 'Removed';
+        (_a = this.logger) === null || _a === void 0 ? void 0 : _a.debug(`${action} current ${kind} transceiver for ${this.tag} stream`);
+        if (kind === 'audio') {
+            this.audioTransceiver = transceiver;
+        }
+        else {
+            this.videoTransceiver = transceiver;
+        }
+    }
     syncTrackChange(kind, track) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
+            var _a, _b, _c;
             if (this.remote) {
                 return;
             }
-            const sender = kind === 'audio' ? this.audioSender : this.videoSender;
-            if (sender) {
+            if (this.stopped || ['closed', 'failed'].includes(this.peer.connectionState)) {
+                return;
+            }
+            const currentTransceiver = this.getCurrentTransceiver(kind);
+            if (currentTransceiver === null || currentTransceiver === void 0 ? void 0 : currentTransceiver.sender) {
                 // If we already have a sender of the same kind for this stream, we can just replace the track with no issues
                 // TODO: safe guard against edge cases where this would fail (eg: changing number of audio channels or increasing video quality)
                 (_a = this.logger) === null || _a === void 0 ? void 0 : _a.debug('MediaStreamWrapper.setPeerTrack.replaceTrack', kind);
-                yield sender.replaceTrack(track);
-                return;
+                try {
+                    yield currentTransceiver.sender.replaceTrack(track);
+                    // Only return early if the track was successfully replaced on a transceiver - otherwise we add it to a new one
+                    return;
+                }
+                catch (err) {
+                    (_b = this.logger) === null || _b === void 0 ? void 0 : _b.error('MediaStreamWrapper.setPeerTrack.replaceTrack failed', kind, err);
+                    this.setCurrentTransceiver(kind, null);
+                }
             }
             if (!track) {
                 return;
             }
-            (_b = this.logger) === null || _b === void 0 ? void 0 : _b.debug('MediaStreamWrapper.setPeerTrack.addTrack', kind);
+            (_c = this.logger) === null || _c === void 0 ? void 0 : _c.debug('MediaStreamWrapper.setPeerTrack.addTrack', kind);
             // This will require a re-negotiation
             this.peer.addTrack(track, this.stream);
             const transceiver = this.peer.getTransceivers().find((t) => t.sender.track === track);
-            if (transceiver) {
-                if (kind === 'audio') {
-                    this.audioSender = transceiver.sender;
-                }
-                else {
-                    this.videoSender = transceiver.sender;
-                }
-            }
+            this.setCurrentTransceiver(kind, transceiver !== null && transceiver !== void 0 ? transceiver : null);
         });
     }
     wrapTrack(kind, track) {

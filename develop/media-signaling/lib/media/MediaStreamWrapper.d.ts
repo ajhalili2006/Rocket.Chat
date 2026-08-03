@@ -15,8 +15,8 @@ export declare class MediaStreamWrapper implements IMediaStreamWrapper {
     private audioEnabled;
     private audioTrack;
     private videoTrack;
-    private audioSender;
-    private videoSender;
+    private audioTransceiver;
+    private videoTransceiver;
     private stopped;
     private remoteIds;
     private _trackingAudioStats;
@@ -37,6 +37,8 @@ export declare class MediaStreamWrapper implements IMediaStreamWrapper {
     private getTracks;
     private removeTracks;
     private replaceTrack;
+    private getCurrentTransceiver;
+    private setCurrentTransceiver;
     private syncTrackChange;
     private wrapTrack;
     private isSameTrack;

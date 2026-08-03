@@ -322,7 +322,14 @@ export class MediaCallWebRTCProcessor {
     updateDirectionAfterNegotiation(kind, desiredDirection, acceptableDirection) {
         var _a;
         const transceivers = this.getTransceivers(kind);
+        let hasAnyValidTransceiver = false;
+        let hasAnyStoppedTransceiver = false;
         for (const transceiver of transceivers) {
+            if (transceiver.currentDirection === 'stopped') {
+                hasAnyStoppedTransceiver = true;
+                continue;
+            }
+            hasAnyValidTransceiver = true;
             if (transceiver.direction !== desiredDirection) {
                 continue;
             }
@@ -333,6 +340,19 @@ export class MediaCallWebRTCProcessor {
                 (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug(`Changing ${kind} direction from ${transceiver.direction} to match ${transceiver.currentDirection}.`);
                 transceiver.direction = transceiver.currentDirection;
             }
+        }
+        if (desiredDirection.includes('send') && !hasAnyValidTransceiver && hasAnyStoppedTransceiver) {
+            this.reactToStoppedTransceiver(kind);
+        }
+    }
+    reactToStoppedTransceiver(kind) {
+        var _a;
+        (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.error(`The ${kind} transceiver has stopped`);
+        if (kind === 'video' && this.screenVideoTrack) {
+            void this.streams.screenShareLocal.setTrack(kind, null).catch((err) => {
+                var _a;
+                (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.error('Failed to remove track from screen share media stream', err);
+            });
         }
     }
     requestDirection(kind, desiredDirection, acceptableDirection) {
