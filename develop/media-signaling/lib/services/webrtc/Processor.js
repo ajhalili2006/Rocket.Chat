@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Emitter } from '@rocket.chat/emitter';
+import { SDP } from './sdp';
 import { MediaStreamManager } from '../../media/MediaStreamManager';
 import { getExternalWaiter } from '../../utils/getExternalWaiter';
 const DATA_CHANNEL_LABEL = 'rocket.chat';
@@ -257,8 +258,41 @@ export class MediaCallWebRTCProcessor {
             yield iceGatheringData.promise;
         });
     }
-    setRemoteIds(streams) {
-        this.streams.setRemoteIds(streams);
+    setRemoteIds(signal) {
+        const { streams, sdp: { sdp }, } = signal;
+        const streamsFromSDP = sdp ? this.getRemoteIdsFromSDP(sdp) : [];
+        const allStreams = this.combineRemoteIds(streams || [], streamsFromSDP);
+        if (allStreams.length) {
+            this.streams.setRemoteIds(allStreams);
+        }
+    }
+    combineRemoteIds(streams1, streams2) {
+        if (!streams2.length) {
+            return streams1;
+        }
+        if (!streams1.length) {
+            return streams2;
+        }
+        const result = [...streams1];
+        for (const stream of streams2) {
+            if (result.find(({ id }) => id === stream.id)) {
+                continue;
+            }
+            result.push(stream);
+        }
+        return result;
+    }
+    getRemoteIdsFromSDP(sdp) {
+        const contentMap = SDP.getStreamContentMapFromSDP(sdp);
+        return Object.entries(contentMap)
+            .map(([id, content]) => {
+            const tag = SDP.getStreamTagByMediaContent(content);
+            if (!tag) {
+                return null;
+            }
+            return { id, tag };
+        })
+            .filter((stream) => Boolean(stream));
     }
     getLocalStreamIds() {
         return this.streams.getLocalStreamIds();

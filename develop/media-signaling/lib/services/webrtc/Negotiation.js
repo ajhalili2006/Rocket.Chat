@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { Emitter } from '@rocket.chat/emitter';
+import { SDP } from './sdp';
 export class Negotiation {
     get started() {
         return this._startedProcessing;
@@ -182,13 +183,34 @@ export class Negotiation {
             if (!sdp) {
                 throw new Error('No local description');
             }
-            return sdp;
+            return this.mutateLocalDescription(sdp);
         }
         catch (err) {
             (_a = this.logger) === null || _a === void 0 ? void 0 : _a.error(err);
             this.fail('failed-to-get-local-description');
             throw err;
         }
+    }
+    mutateLocalDescription(description) {
+        var _a, _b;
+        const { sdp, type } = description;
+        if (!sdp) {
+            return description;
+        }
+        (_a = this.logger) === null || _a === void 0 ? void 0 : _a.debug('MediaCallWebRTCProcessor.mutateLocalDescription', type);
+        const mainStreamId = this.webrtcProcessor.streams.mainLocal.stream.id;
+        const screenShareStreamId = this.webrtcProcessor.streams.screenShareLocal.stream.id;
+        const mutated = SDP.mutateSDPWithStreamContents(sdp, [
+            { id: mainStreamId, content: 'main' },
+            { id: screenShareStreamId, content: 'slides' },
+        ]);
+        if (sdp !== mutated) {
+            (_b = this.logger) === null || _b === void 0 ? void 0 : _b.debug('SDP was mutated');
+        }
+        return {
+            type,
+            sdp: mutated,
+        };
     }
 }
 export class WebRTCNegotiation extends Negotiation {

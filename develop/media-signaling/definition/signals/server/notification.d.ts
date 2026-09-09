@@ -1,4 +1,4 @@
-import type { CallFeature, CallNotification } from '../../call';
+import type { CallFeature, CallHangupReason, CallNotification } from '../../call';
 /** Server is sending a notification about the call state */
 export type ServerMediaSignalNotification = {
     callId: string;
@@ -10,5 +10,6 @@ export type ServerMediaSignalNotification = {
      */
     signedContractId?: string;
     features?: CallFeature[];
+    hangupReason?: CallHangupReason;
 };
 //# sourceMappingURL=notification.d.ts.map

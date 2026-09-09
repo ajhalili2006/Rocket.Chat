@@ -32,6 +32,7 @@ export declare class Negotiation {
     protected createEarlyAnswer(this: WebRTCNegotiation): Promise<RTCSessionDescriptionInit>;
     protected setPeerLocalDescription(this: WebRTCNegotiation, localDescription: RTCSessionDescriptionInit): Promise<void>;
     protected getPeerLocalDescription(this: WebRTCNegotiation): RTCSessionDescriptionInit;
+    protected mutateLocalDescription(this: WebRTCNegotiation, description: RTCSessionDescriptionInit): RTCSessionDescriptionInit;
 }
 export declare abstract class WebRTCNegotiation extends Negotiation {
     protected abstract webrtcProcessor: IWebRTCProcessor;

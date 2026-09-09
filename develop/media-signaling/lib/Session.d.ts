@@ -11,6 +11,7 @@ export type MediaSignalingEvents = {
         call: IClientMediaCall;
     };
     endedCall: void;
+    droppedCall: void;
     hiddenCall: void;
     registered: {
         activeCalls: IClientMediaCall['callId'][];

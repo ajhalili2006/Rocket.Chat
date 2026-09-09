@@ -27,6 +27,7 @@ export const callHangupReasonList = [
     'unknown', // One of the call's signed users reported they don't know this call
     'another-client', // One of the call's users requested a hangup from a different client session than the one where the call is happening
 ];
+export const isCallHangupReason = (reason) => callHangupReasonList.includes(reason);
 export const callAnswerList = [
     'accept', // actor accepts the call
     'reject', // actor rejects the call

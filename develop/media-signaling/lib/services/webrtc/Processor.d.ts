@@ -2,6 +2,7 @@ import { Emitter } from '@rocket.chat/emitter';
 import type { IWebRTCProcessor, WebRTCInternalStateMap, WebRTCProcessorConfig, WebRTCProcessorEvents } from '../../../definition';
 import type { MediaStreamIdentification } from '../../../definition/media/MediaStreamIdentification';
 import type { ServiceStateValue } from '../../../definition/services/IServiceProcessor';
+import type { ServerMediaSignalRemoteSDP } from '../../../definition/signals';
 import { MediaStreamManager } from '../../media/MediaStreamManager';
 export declare class MediaCallWebRTCProcessor implements IWebRTCProcessor {
     private readonly config;
@@ -42,7 +43,9 @@ export declare class MediaCallWebRTCProcessor implements IWebRTCProcessor {
     isStable(): boolean;
     getLocalDescription(): RTCSessionDescriptionInit | null;
     waitForIceGathering(): Promise<void>;
-    setRemoteIds(streams: MediaStreamIdentification[]): void;
+    setRemoteIds(signal: ServerMediaSignalRemoteSDP): void;
+    protected combineRemoteIds(streams1: MediaStreamIdentification[], streams2: MediaStreamIdentification[]): MediaStreamIdentification[];
+    protected getRemoteIdsFromSDP(sdp: string): MediaStreamIdentification[];
     getLocalStreamIds(): MediaStreamIdentification[];
     private initialize;
     private startNewGathering;

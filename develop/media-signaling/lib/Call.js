@@ -159,6 +159,7 @@ export class ClientMediaCall {
         this.sentLocalSdp = false;
         this.receivedRemoteSdp = false;
         this.enabledFeatures = null;
+        this.hangupReason = null;
         this.earlySignals = new Set();
         this.stateTimeoutHandlers = new Set();
         this._role = 'callee';
@@ -443,12 +444,13 @@ export class ClientMediaCall {
                 return this.initializeRemoteCall(signal, oldCall);
             }
             if (signalType === 'rejected-call-request') {
-                return this.flagAsEnded('remote');
+                const clientReason = ['busy', 'unavailable'].includes(signal.reason) ? 'unavailable' : undefined;
+                return this.flagAsEnded('remote', clientReason);
             }
             if (!this.hasRemoteData) {
                 // if the call is over, we no longer need to wait for its data
                 if (signal.type === 'notification' && signal.notification === 'hangup') {
-                    this.changeState('hangup');
+                    this.setHangupState(signal.hangupReason);
                     return;
                 }
                 (_b = this.config.logger) === null || _b === void 0 ? void 0 : _b.debug('Remote data missing, adding signal to queue');
@@ -497,7 +499,7 @@ export class ClientMediaCall {
             this.throwError('missing-remote-data');
         }
         this.config.transporter.answer(this.callId, 'reject');
-        this.changeState('hangup');
+        this.setHangupState('rejected');
     }
     transfer(callee) {
         var _a;
@@ -670,6 +672,15 @@ export class ClientMediaCall {
     hasFlag(flag) {
         return this._flags.includes(flag);
     }
+    shouldSkipDroppedEvent() {
+        if (this.hidden) {
+            return true;
+        }
+        if (this.hangupReason === 'normal') {
+            return true;
+        }
+        return false;
+    }
     canChangeToState(newState) {
         if (newState === this._state) {
             return false;
@@ -781,17 +792,6 @@ export class ClientMediaCall {
         // With no more info, we can't safely ignore webrtc
         return false;
     }
-    processAnswerRequest(signal) {
-        return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            if (this.hidden || this.shouldIgnoreWebRTC()) {
-                return;
-            }
-            (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('ClientMediaCall.processAnswerRequest', signal);
-            this.requireWebRTC();
-            void this.negotiationManager.addNegotiation(signal.negotiationId, signal.sdp);
-        });
-    }
     sendError(error) {
         var _a;
         (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('ClientMediaCall.sendError', error);
@@ -808,27 +808,19 @@ export class ClientMediaCall {
                 return;
             }
             if (!this.isSignalTargetingThisSession(signal)) {
-                (_b = this.config.logger) === null || _b === void 0 ? void 0 : _b.error('Received an offer request that is unsigned, or signed to a different session.');
+                (_b = this.config.logger) === null || _b === void 0 ? void 0 : _b.error('Received a remote sdp that is not signed to this session.');
                 return;
             }
             if (this.shouldIgnoreWebRTC()) {
                 return;
             }
+            if (!['offer', 'answer'].includes(signal.sdp.type)) {
+                (_c = this.config.logger) === null || _c === void 0 ? void 0 : _c.error('Unsupported remote sdp type.', signal.sdp.type);
+                return;
+            }
             this.requireWebRTC();
-            if (signal.streams) {
-                this.webrtcProcessor.setRemoteIds(signal.streams);
-            }
-            switch (signal.sdp.type) {
-                case 'offer':
-                    yield this.processAnswerRequest(signal);
-                    break;
-                case 'answer':
-                    yield this.negotiationManager.setRemoteDescription(signal.negotiationId, signal.sdp);
-                    break;
-                default:
-                    (_c = this.config.logger) === null || _c === void 0 ? void 0 : _c.error('Unsupported sdp type.');
-                    return;
-            }
+            this.webrtcProcessor.setRemoteIds(signal);
+            yield this.negotiationManager.setRemoteDescription(signal.negotiationId, signal.sdp);
             this.receivedRemoteSdp = true;
             this.updateClientState();
         });
@@ -855,7 +847,7 @@ export class ClientMediaCall {
                 return this.hangup('unavailable');
             }
             this.config.transporter.answer(this.callId, 'unavailable');
-            this.changeState('hangup');
+            this.setHangupState('unavailable');
         });
     }
     processEarlySignals() {
@@ -902,7 +894,7 @@ export class ClientMediaCall {
                     this.resetStateTimeouts();
                     break;
                 case 'hangup':
-                    return this.flagAsEnded('remote');
+                    return this.flagAsEnded('remote', signal.hangupReason);
             }
         });
     }
@@ -933,14 +925,22 @@ export class ClientMediaCall {
             this.changeState('accepted');
         });
     }
-    flagAsEnded(reason) {
+    flagAsEnded(reasonForServer, reasonForClient) {
         var _a;
-        (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('ClientMediaCall.flagAsEnded', reason);
+        (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('ClientMediaCall.flagAsEnded', reasonForServer, reasonForClient);
         if (this._state === 'hangup') {
             return;
         }
         if (!this.hidden && this.hasRemoteData) {
-            this.config.transporter.hangup(this.callId, reason);
+            this.config.transporter.hangup(this.callId, reasonForServer);
+        }
+        this.setHangupState(reasonForClient || reasonForServer);
+    }
+    setHangupState(reason) {
+        var _a;
+        if (reason) {
+            this.hangupReason = reason;
+            (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('Hangup Reason:', reason);
         }
         this.changeState('hangup');
     }

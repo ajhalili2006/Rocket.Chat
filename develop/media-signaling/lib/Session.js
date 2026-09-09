@@ -55,7 +55,7 @@ export class MediaSignalingSession extends Emitter {
         this.deviceId = null;
         this.currentDeviceId = null;
         this.callsToGetUserMedia = 0;
-        this.lastState = { hasCall: false, hasVisibleCall: false, hasBusyCall: false };
+        this.lastState = { mainCall: null, hidden: false, busy: false, localCall: null };
         this.transporter = new MediaSignalTransportWrapper(this._sessionId, config.transport, config.logger);
         this.registration = new SessionRegistration({
             logger: config.logger,
@@ -619,27 +619,25 @@ export class MediaSignalingSession extends Emitter {
         });
     }
     onSessionStateChange() {
-        var _a;
-        const hadCall = this.lastState.hasCall;
-        const hadVisibleCall = this.lastState.hasVisibleCall;
-        const hadBusyCall = this.lastState.hasBusyCall;
+        var _a, _b, _c, _d, _e;
+        const { mainCall: oldCall, hidden: wasHidden, busy: wasBusy, localCall: oldLocalCall } = this.lastState;
         if (!this.registration.active) {
-            if (hadCall) {
+            if (oldCall) {
                 this.emit('endedCall');
             }
             (_a = this.config.logger) === null || _a === void 0 ? void 0 : _a.debug('skipping session events on inactive session');
             return;
         }
         // Do not skip local calls if we transitioned from a different active call to it
-        const mainCall = this.getMainCall(!hadCall);
-        const hasCall = Boolean(mainCall);
-        const hasVisibleCall = Boolean(mainCall && !mainCall.hidden);
-        const hasBusyCall = Boolean(hasVisibleCall && (mainCall === null || mainCall === void 0 ? void 0 : mainCall.busy));
-        this.lastState = { hasCall, hasVisibleCall, hasBusyCall };
-        if (mainCall && !hadCall) {
+        const mainCall = this.getMainCall(!oldCall);
+        const localCall = mainCall || this.getMainCall(false);
+        const hidden = (_b = mainCall === null || mainCall === void 0 ? void 0 : mainCall.hidden) !== null && _b !== void 0 ? _b : false;
+        const busy = (_c = mainCall === null || mainCall === void 0 ? void 0 : mainCall.busy) !== null && _c !== void 0 ? _c : false;
+        this.lastState = { mainCall, hidden, busy, localCall };
+        if (mainCall && !oldCall) {
             this.emit('newCall', { call: mainCall });
         }
-        if (mainCall && hasBusyCall && !hadBusyCall) {
+        if (mainCall && busy && !wasBusy) {
             this.emit('acceptedCall', { call: mainCall });
         }
         this.emit('sessionStateChange');
@@ -650,11 +648,21 @@ export class MediaSignalingSession extends Emitter {
                 mainCall.setMuted(true);
             }
         }
-        if (hadCall && !hasCall) {
-            this.emit('endedCall');
+        if (oldCall) {
+            if (!mainCall) {
+                this.emit('endedCall');
+                if (!wasHidden && !oldCall.shouldSkipDroppedEvent()) {
+                    (_d = this.config.logger) === null || _d === void 0 ? void 0 : _d.debug('droppedCall');
+                    this.emit('droppedCall');
+                }
+            }
+            else if (!wasHidden && hidden) {
+                this.emit('hiddenCall');
+            }
         }
-        else if (hadVisibleCall && !hasVisibleCall) {
-            this.emit('hiddenCall');
+        else if (oldLocalCall && !localCall && !oldLocalCall.shouldSkipDroppedEvent()) {
+            (_e = this.config.logger) === null || _e === void 0 ? void 0 : _e.debug('droppedCall');
+            this.emit('droppedCall');
         }
     }
 }

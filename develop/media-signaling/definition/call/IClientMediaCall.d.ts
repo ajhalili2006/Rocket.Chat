@@ -9,6 +9,7 @@ export declare const callStateList: readonly ["none", "ringing", "accepted", "ac
 export type CallState = (typeof callStateList)[number];
 export declare const callHangupReasonList: readonly ["normal", "remote", "rejected", "unavailable", "transfer", "not-answered", "timeout-local-track", "timeout-remote-sdp", "timeout-local-sdp", "timeout-activation", "timeout", "signaling-error", "service-error", "media-error", "input-error", "error", "unknown", "another-client"];
 export type CallHangupReason = (typeof callHangupReasonList)[number];
+export declare const isCallHangupReason: (reason: string) => reason is CallHangupReason;
 export declare const callAnswerList: readonly ["accept", "reject", "ack", "unavailable"];
 export type CallAnswer = (typeof callAnswerList)[number];
 export declare const callNotificationList: readonly ["accepted", "active", "hangup", "trying"];

@@ -72,9 +72,9 @@ export class MediaStreamManager {
             (_b = this.logger) === null || _b === void 0 ? void 0 : _b.debug('default audio to main track');
             return [this.mainRemote];
         }
-        // A video track for an unidentified stream, let's ignore it
-        (_c = this.logger) === null || _c === void 0 ? void 0 : _c.debug('unidentified stream, ignoring video track');
-        return [];
+        // A video track for an unidentified stream - since the only video we support now is screen share, assume that's what this is
+        (_c = this.logger) === null || _c === void 0 ? void 0 : _c.debug('unidentified stream, assuming screen-share');
+        return [this.screenShareRemote];
     }
     createStream(remote, tag) {
         const wrapper = new MediaStreamWrapper(remote, tag, this.peer, this.logger);
