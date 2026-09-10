@@ -12,8 +12,8 @@ import { NegotiationManager } from './NegotiationManager';
 import { isPendingState } from './services/states';
 import { serializeError } from './utils/serializeError';
 const TIMEOUT_TO_ACCEPT = 60000;
-const TIMEOUT_TO_CONFIRM_ACCEPTANCE = 2000;
-const TIMEOUT_TO_PROGRESS_SIGNALING = 10000;
+const TIMEOUT_TO_CONFIRM_ACCEPTANCE = 4000;
+const TIMEOUT_TO_PROGRESS_SIGNALING = 20000;
 const STATE_REPORT_DELAY = 300;
 const CALLS_WITH_NO_REMOTE_DATA_REPORT_DELAY = 5000;
 // if the server tells us we're the caller in a call we don't recognize, ignore it completely
@@ -997,6 +997,8 @@ export class ClientMediaCall {
                 return 'timeout-local-sdp';
             case 'activating':
                 return 'timeout-activation';
+            case 'accepting':
+                return 'timeout-accepting';
         }
         return 'timeout';
     }

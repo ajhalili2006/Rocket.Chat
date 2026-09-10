@@ -7,7 +7,7 @@ export declare const callFeatureList: readonly ["audio", "screen-share", "transf
 export type CallFeature = (typeof callFeatureList)[number];
 export declare const callStateList: readonly ["none", "ringing", "accepted", "active", "renegotiating", "hangup"];
 export type CallState = (typeof callStateList)[number];
-export declare const callHangupReasonList: readonly ["normal", "remote", "rejected", "unavailable", "transfer", "not-answered", "timeout-local-track", "timeout-remote-sdp", "timeout-local-sdp", "timeout-activation", "timeout", "signaling-error", "service-error", "media-error", "input-error", "error", "unknown", "another-client"];
+export declare const callHangupReasonList: readonly ["normal", "remote", "rejected", "unavailable", "transfer", "not-answered", "timeout-local-track", "timeout-remote-sdp", "timeout-local-sdp", "timeout-activation", "timeout-accepting", "timeout", "signaling-error", "service-error", "media-error", "input-error", "error", "unknown", "another-client"];
 export type CallHangupReason = (typeof callHangupReasonList)[number];
 export declare const isCallHangupReason: (reason: string) => reason is CallHangupReason;
 export declare const callAnswerList: readonly ["accept", "reject", "ack", "unavailable"];
