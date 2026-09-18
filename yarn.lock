@@ -9695,7 +9695,7 @@ __metadata:
     date-fns: "npm:~4.1.0"
     dompurify: "npm:~3.4.14"
     eslint: "npm:~9.39.5"
-    highlight.js: "npm:11.8.0"
+    highlight.js: "npm:11.12.0"
     i18next: "npm:~26.4.2"
     identity-obj-proxy: "npm:^3.0.0"
     jest: "npm:~30.2.0"
@@ -10316,7 +10316,7 @@ __metadata:
     google-libphonenumber: "npm:^3.2.46"
     gravatar: "npm:^1.8.2"
     he: "npm:^1.2.0"
-    highlight.js: "npm:11.8.0"
+    highlight.js: "npm:11.12.0"
     hono: "npm:4.13.5"
     http-proxy-agent: "npm:^7.0.2"
     human-interval: "npm:^2.0.1"
@@ -24345,10 +24345,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"highlight.js@npm:11.8.0":
-  version: 11.8.0
-  resolution: "highlight.js@npm:11.8.0"
-  checksum: 10/a1952caae8ae07b9e60faad87307881eaf38d2356b0b1295b0692b16fb57811da6bb4d143a4940609f58c6a8facf73ff493bab4d946fb24731af9355d51d0a69
+"highlight.js@npm:11.12.0":
+  version: 11.12.0
+  resolution: "highlight.js@npm:11.12.0"
+  checksum: 10/1aecfae8aaf230bc38daa81b91fdd3b3e2765b5d18fd1d83dbc85513552336028e71f0e827417ebec2b88ac2e6c903ac6ccfca0772a471768d9236a99f3f540d
   languageName: node
   linkType: hard
 
