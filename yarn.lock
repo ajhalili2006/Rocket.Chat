@@ -10452,7 +10452,7 @@ __metadata:
     mailparser: "npm:3.9.20"
     marked: "npm:^4.3.0"
     mem: "npm:^8.1.1"
-    meteor-node-stubs: "npm:~1.2.29"
+    meteor-node-stubs: "npm:~1.2.30"
     mime-db: "npm:^1.52.0"
     mime-type: "npm:^4.0.0"
     mkdirp: "npm:^1.0.4"
@@ -28953,9 +28953,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"meteor-node-stubs@npm:~1.2.29":
-  version: 1.2.29
-  resolution: "meteor-node-stubs@npm:1.2.29"
+"meteor-node-stubs@npm:~1.2.30":
+  version: 1.2.30
+  resolution: "meteor-node-stubs@npm:1.2.30"
   dependencies:
     "@meteorjs/crypto-browserify": "npm:^3.12.1"
     assert: "npm:^2.1.0"
@@ -28981,7 +28981,7 @@ __metadata:
     url: "npm:^0.11.4"
     util: "npm:^0.12.5"
     vm-browserify: "npm:^1.1.2"
-  checksum: 10/84d8767a79e588f3f1f8afe3065d2c4ef2250ac1132f96add1d9dee7708e59c2e66bda6d282c86186fedfc00f99edcfc77559b7ef175377d8bdab812560ec05b
+  checksum: 10/5fb354c2a566386bacd32d7e72ad0e4a4f51d4b6b1f3783a483a7925a4d984c572ae1fdb341315c13f46031c38eb18fc4999f63f5ffd6e2f0a77c3b8e5848282
   languageName: node
   linkType: hard
 
