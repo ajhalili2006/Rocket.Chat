@@ -14,7 +14,7 @@ export declare const callAnswerList: readonly ["accept", "reject", "ack", "unava
 export type CallAnswer = (typeof callAnswerList)[number];
 export declare const callNotificationList: readonly ["accepted", "active", "hangup", "trying"];
 export type CallNotification = (typeof callNotificationList)[number];
-export declare const callRejectedReasonList: readonly ["invalid-call-id", "invalid-contract-id", "existing-call-id", "already-requested", "unsupported", "unavailable", "busy", "invalid-call-params", "forbidden"];
+export declare const callRejectedReasonList: readonly ["invalid-call-id", "invalid-contract-id", "existing-call-id", "already-requested", "unsupported", "unavailable", "busy", "invalid-call-params", "forbidden", "prevented"];
 export type CallRejectedReason = (typeof callRejectedReasonList)[number];
 export declare const callFlagList: string[];
 export type CallFlag = (typeof callFlagList)[number];
